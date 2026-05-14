@@ -50,6 +50,8 @@ const withBase = createWithBase(base);
 const bodyClassNames = typeof bodyClass === 'string' ? bodyClass.split(/\s+/).filter(Boolean) : [];
 const isAdminPage = bodyClassNames.includes('admin-page');
 const isDev = import.meta.env.DEV;
+const isDevAdminPage = isAdminPage && isDev;
+const adminDevState = isAdminPage ? (isDev ? 'true' : 'false') : undefined;
 ---
 
 <!doctype html>
@@ -65,6 +67,16 @@ const isDev = import.meta.env.DEV;
         document.documentElement.dataset.theme = theme;
       })();
     </script>
+    {isDevAdminPage ? (
+      <script is:inline>
+        (() => {
+          const key = 'astro-whono:admin-sidebar:state';
+          let stored = null;
+          try { stored = localStorage.getItem(key); } catch (_) {}
+          document.documentElement.dataset.adminSidebar = stored === 'collapsed' ? 'collapsed' : 'expanded';
+        })();
+      </script>
+    ) : null}
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/svg+xml" sizes="any" href={withBase('favicon.svg')} />
@@ -104,6 +116,7 @@ const isDev = import.meta.env.DEV;
   <body
     class={bodyClass}
     data-code-line-numbers={showCodeLineNumbers ? undefined : 'off'}
+    data-admin-dev={adminDevState}
   >
     <a class="skip-link" href="#content">跳到内容</a>
     <div class="shell" data-sidebar-divider={sidebarDividerVariant}>
@@ -132,5 +145,10 @@ const isDev = import.meta.env.DEV;
       import '../scripts/sidebar-theme.ts';
       import '../scripts/sidebar-rail-nav.ts';
     </script>
+    {isDevAdminPage ? (
+      <script>
+        import '../scripts/admin-sidebar-toggle.ts';
+      </script>
+    ) : null}
   </body>
 </html>

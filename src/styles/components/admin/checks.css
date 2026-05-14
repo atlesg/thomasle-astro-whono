@@ -30,20 +30,25 @@
 }
 
 .admin-checks-toolbar__lead {
-  display: grid;
-  gap: 7px;
+  display: inline-flex;
+  align-items: baseline;
+  flex-wrap: nowrap;
+  gap: 8px 12px;
+  max-width: 100%;
   min-width: 0;
 }
 
 .admin-checks-toolbar__heading {
   display: inline-flex;
   align-items: baseline;
+  flex: 0 0 auto;
   min-width: 0;
 }
 
 .admin-checks-toolbar__filters-wrap {
   display: inline-flex;
   align-items: baseline;
+  flex: 1 1 auto;
   gap: 0;
   min-width: 0;
   max-width: 100%;

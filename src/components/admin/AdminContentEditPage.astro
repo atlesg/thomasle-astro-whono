@@ -36,11 +36,11 @@ const shouldShowContentConsole = isDev;
 const shouldShowAdminNav = isDev;
 const base = import.meta.env.BASE_URL ?? '/';
 const withBase = createWithBase(base);
-const { default: adminShellStylesHref } = await import('../../styles/components/admin-shell.css?url');
+const { default: adminShellStylesHref } = await import('../../styles/components/admin/shell.css?url');
 
 const loadContentEditDevState = async () => {
   const payload = await readAdminContentEntryEditorPayload(collection, entryId);
-  const { default: adminContentStylesHref } = await import('../../styles/components/admin-content.css?url');
+  const { default: adminContentStylesHref } = await import('../../styles/components/admin/content/index.css?url');
 
   if (!payload.writable) {
     return {
@@ -65,7 +65,7 @@ const loadContentEditDevState = async () => {
     { default: adminImageSharedStylesHref }
   ] = await Promise.all([
     import('../../scripts/admin-content/index.ts?url'),
-    import('../../styles/components/admin-images-shared.css?url')
+    import('../../styles/components/admin/images/shared.css?url')
   ]);
 
   return {

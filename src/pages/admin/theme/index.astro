@@ -12,7 +12,7 @@ import { createWithBase } from '../../../utils/format';
 const isDev = import.meta.env.DEV;
 const base = import.meta.env.BASE_URL ?? '/';
 const withBase = createWithBase(base);
-const { default: adminShellStylesHref } = await import('../../../styles/components/admin-shell.css?url');
+const { default: adminShellStylesHref } = await import('../../../styles/components/admin/shell.css?url');
 
 const loadThemeDevState = async () => {
   const [
@@ -40,8 +40,8 @@ const loadThemeDevState = async () => {
     import('../../../components/admin/AdminThemeDevConsole.astro'),
     import('../../../components/admin/AdminImagePicker.astro'),
     import('../../../scripts/admin-console/index.ts?url'),
-    import('../../../styles/components/admin-theme.css?url'),
-    import('../../../styles/components/admin-images-shared.css?url')
+    import('../../../styles/components/admin/theme/index.css?url'),
+    import('../../../styles/components/admin/images/shared.css?url')
   ]);
 
   const settingsEndpoint = withBase(ADMIN_SETTINGS_API_PATH);

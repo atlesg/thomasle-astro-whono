@@ -23,6 +23,7 @@ import List from '@lucide/astro/icons/list';
 import Monitor from '@lucide/astro/icons/monitor';
 import Palette from '@lucide/astro/icons/palette';
 import PanelLeft from '@lucide/astro/icons/panel-left';
+import PanelLeftOpen from '@lucide/astro/icons/panel-left-open';
 import RefreshCw from '@lucide/astro/icons/refresh-cw';
 import Scan from '@lucide/astro/icons/scan';
 import Search from '@lucide/astro/icons/search';
@@ -40,6 +41,8 @@ type AdminIconName =
   | 'admin-home'
   | 'admin-page'
   | 'admin-sidebar'
+  | 'admin-sidebar-collapse'
+  | 'admin-sidebar-expand'
   | 'admin-site'
   | 'activity'
   | 'astro-logo'
@@ -96,6 +99,8 @@ const adminIconComponents = {
   'admin-home': House,
   'admin-page': FileText,
   'admin-sidebar': PanelLeft,
+  'admin-sidebar-collapse': PanelLeft,
+  'admin-sidebar-expand': PanelLeftOpen,
   'admin-site': Globe,
   activity: Activity,
   'branch-nodes': GitBranch,

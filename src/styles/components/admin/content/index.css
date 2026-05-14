@@ -2,6 +2,6 @@
    聚合 Content Console 私有样式。@import 必须保持在普通规则之前，避免入口文件重新承担具体样式职责。
 */
 
-@import "./admin-content-base.css";
-@import "./admin-content-console.css";
-@import "./admin-content-editor.css";
+@import "./base.css";
+@import "./console.css";
+@import "./editor.css";

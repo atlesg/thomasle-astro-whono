@@ -144,7 +144,7 @@ npm run audit:prod
 - Content collections: `src/content.config.ts`
 - Shared style entry: `src/styles/global.css`
 - Page / scene style entries: `src/styles/home.css`, `src/styles/about.css`, `src/styles/memo.css`, `src/styles/article.css`, `src/styles/bits-page.css`
-- Admin style entry: `src/styles/components/admin-shell.css` + route-specific Admin styles; the full `admin.css` aggregate is no longer provided
+- Admin style entry: `src/styles/components/admin/shell.css` + route-specific styles under `src/styles/components/admin/**`; the full `admin.css` aggregate is no longer provided
 
 ### Admin Console (`/admin`)
 

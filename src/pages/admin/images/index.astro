@@ -17,7 +17,7 @@ import { createWithBase } from '../../../utils/format';
 const isDev = import.meta.env.DEV;
 const base = import.meta.env.BASE_URL ?? '/';
 const withBase = createWithBase(base);
-const { default: adminShellStylesHref } = await import('../../../styles/components/admin-shell.css?url');
+const { default: adminShellStylesHref } = await import('../../../styles/components/admin/shell.css?url');
 const DEFAULT_IMAGE_GROUP = 'all' as const;
 const DEFAULT_IMAGE_SCOPE = '' as const;
 
@@ -48,7 +48,7 @@ const loadImagesDevState = async (): Promise<{
 
   const [{ default: adminImageScriptHref }, { default: adminImageStylesHref }] = await Promise.all([
     import('../../../scripts/admin-images/index.ts?url'),
-    import('../../../styles/components/admin-images.css?url')
+    import('../../../styles/components/admin/images/index.css?url')
   ]);
   const browseIndex = await listAdminImageBrowseIndex().catch(() => null);
 

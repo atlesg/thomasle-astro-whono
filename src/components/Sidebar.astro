@@ -54,11 +54,15 @@ const nav = settings.shell.nav
     ornament: item.ornament,
     href: withBase(getSidebarHref(item.id))
   }));
-const showReaderToggle = settings.ui.readingMode.showEntry;
-const showRssLink = settings.ui.sidebarActions.showRssLink;
+const hidePublicSidebarActionsInDevAdmin = isAdminContext && isDev;
+const showReaderToggle = !hidePublicSidebarActionsInDevAdmin && settings.ui.readingMode.showEntry;
+const showRssLink = !hidePublicSidebarActionsInDevAdmin && settings.ui.sidebarActions.showRssLink;
 const showThemeToggle = settings.ui.sidebarActions.showThemeToggle;
-const showAdminEntry = settings.ui.sidebarActions.showAdminEntry && settings.site.adminOverview.publicVisible;
+const showAdminEntry = !hidePublicSidebarActionsInDevAdmin
+  && settings.ui.sidebarActions.showAdminEntry
+  && settings.site.adminOverview.publicVisible;
 const showAdminRouteRail = isAdminContext && isDev;
+const showAdminSidebarToggle = isAdminContext && isDev;
 const siteTitleLabel = `${siteTitle} 首页`;
 const mainSiteHomeLabel = '主站首页';
 const adminRailTitleLabel = getAdminRoute('overview').description;
@@ -68,7 +72,7 @@ const isAdminRailRoute = (route: AdminRouteDefinition): route is AdminRailRouteD
 const adminRailRoutes = ADMIN_ROUTES.filter(isAdminRailRoute);
 ---
 
-<aside class="sidebar">
+<aside id="site-sidebar" class="sidebar">
   <a class="sidebar__title sidebar__title--site" href={homeHref} aria-label={siteTitleLabel}>
     <span class="sidebar__title-text">{siteTitle}</span>
   </a>
@@ -217,6 +221,24 @@ const adminRailRoutes = ADMIN_ROUTES.filter(isAdminRailRoute);
       >
         <UiIcon name="monitor-dot" class="icon" />
       </a>
+    ) : null}
+
+    {showAdminSidebarToggle ? (
+      <>
+        <span class="sidebar-actions__admin-divider" aria-hidden="true"></span>
+        <button
+          id="admin-sidebar-toggle"
+          class="icon-button admin-sidebar-toggle"
+          type="button"
+          aria-controls="site-sidebar"
+          aria-label="收起侧栏"
+          aria-pressed="false"
+          title="收起侧栏"
+        >
+          <AdminIcon name="admin-sidebar-collapse" class="icon admin-sidebar-toggle__icon admin-sidebar-toggle__icon--collapse" />
+          <AdminIcon name="admin-sidebar-expand" class="icon admin-sidebar-toggle__icon admin-sidebar-toggle__icon--expand" />
+        </button>
+      </>
     ) : null}
   </div>
 </aside>

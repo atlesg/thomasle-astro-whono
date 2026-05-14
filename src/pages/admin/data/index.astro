@@ -19,7 +19,7 @@ const isDev = import.meta.env.DEV;
 const base = import.meta.env.BASE_URL ?? '/';
 const withBase = createWithBase(base);
 const exportIncludedScopesLabel = `['${ADMIN_SETTINGS_EXPORT_SCOPE}']`;
-const { default: adminShellStylesHref } = await import('../../../styles/components/admin-shell.css?url');
+const { default: adminShellStylesHref } = await import('../../../styles/components/admin/shell.css?url');
 
 const loadDataDevState = async () => {
   const [
@@ -27,7 +27,7 @@ const loadDataDevState = async () => {
     { default: adminDataStylesHref }
   ] = await Promise.all([
     import('../../../scripts/admin-data/index.ts?url'),
-    import('../../../styles/components/admin-data.css?url')
+    import('../../../styles/components/admin/data.css?url')
   ]);
 
   return {

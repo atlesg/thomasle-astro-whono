@@ -2,6 +2,6 @@
    聚合 Theme Console 私有表单、侧栏导航编辑与社交链接样式。
 */
 
-@import "./admin-form.css";
-@import "./admin-social.css";
-@import "./admin-nav.css";
+@import "./form.css";
+@import "./social.css";
+@import "./nav.css";
