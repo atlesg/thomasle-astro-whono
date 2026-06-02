@@ -7,10 +7,12 @@ import {
   getEditorSidePanelStackedRatioFromPointer,
   mergeEditorDisplayPreference,
   normalizeEditorBodyValue,
+  readRestoredEditorPreferences,
   readStoredEditorDisplayPreference,
   readStoredEditorSidePanelPreference,
   resolveEditorLayoutPreference,
-  resolveEditorSidePanelPreference
+  resolveEditorSidePanelPreference,
+  type EditorSidePanelPreference
 } from '../src/components/admin/editor/editor-shell-helpers';
 import {
   DEFAULT_MARKDOWN_HIGHLIGHT_THEME,
@@ -24,6 +26,15 @@ import {
 } from '../src/lib/admin-console/ui-prefs-keys';
 
 describe('admin editor shell helpers', () => {
+  const stubLocalStorage = (entries: Record<string, string | null>) => {
+    const localStorage = {
+      getItem: vi.fn((key: string) => entries[key] ?? null),
+      setItem: vi.fn()
+    };
+    vi.stubGlobal('window', { localStorage });
+    return localStorage;
+  };
+
   afterEach(() => {
     vi.unstubAllGlobals();
   });
@@ -247,6 +258,100 @@ describe('admin editor shell helpers', () => {
       outlineActiveTab: 'headings',
       syntaxOpen: true
     });
+  });
+
+  it('restores editor preferences with admin defaults ahead of stored layout and side panel state', () => {
+    stubLocalStorage({
+      layout: 'stacked',
+      display: JSON.stringify({
+        lineNumbers: true,
+        markdownHighlightTheme: 'nord'
+      }),
+      'side-panel': JSON.stringify({
+        outlineOpen: false,
+        outlineActiveTab: 'essays',
+        syntaxOpen: false
+      })
+    });
+
+    expect(readRestoredEditorPreferences({
+      layoutStorageKey: 'layout',
+      displayPreferenceStorageKey: 'display',
+      sidePanelPreferenceStorageKey: 'side-panel',
+      adminDefaults: {
+        layout: 'split',
+        outlineOpen: true,
+        syntaxOpen: true
+      }
+    })).toEqual({
+      layout: 'split',
+      display: {
+        lineNumbers: true,
+        markdownHighlightTheme: 'nord'
+      },
+      sidePanel: {
+        outlineOpen: true,
+        outlineActiveTab: 'headings',
+        syntaxOpen: true
+      }
+    });
+  });
+
+  it('restores editor display fallback and normalizes side panel tabs per workspace', () => {
+    stubLocalStorage({
+      layout: 'split',
+      display: null,
+      'side-panel': JSON.stringify({
+        outlineOpen: true,
+        outlineActiveTab: 'essays',
+        syntaxOpen: false
+      })
+    });
+
+    expect(readRestoredEditorPreferences({
+      layoutStorageKey: 'layout',
+      displayPreferenceStorageKey: 'display',
+      sidePanelPreferenceStorageKey: 'side-panel',
+      adminDefaults: null,
+      normalizeSidePanelPreference: (preference) => ({
+        ...preference,
+        outlineActiveTab: preference.outlineActiveTab === 'essays'
+          ? 'headings'
+          : preference.outlineActiveTab
+      })
+    })).toEqual({
+      layout: 'split',
+      display: DEFAULT_EDITOR_DISPLAY_PREFERENCE,
+      sidePanel: {
+        outlineOpen: true,
+        outlineActiveTab: 'headings',
+        syntaxOpen: false
+      }
+    });
+  });
+
+  it('skips side panel normalization when no side panel preference can be restored', () => {
+    stubLocalStorage({
+      layout: 'grid',
+      display: JSON.stringify({
+        lineNumbers: false,
+        markdownHighlightTheme: 'solarized'
+      })
+    });
+    const normalizeSidePanelPreference = vi.fn((preference: EditorSidePanelPreference) => preference);
+
+    expect(readRestoredEditorPreferences({
+      layoutStorageKey: 'layout',
+      displayPreferenceStorageKey: 'display',
+      sidePanelPreferenceStorageKey: 'side-panel',
+      adminDefaults: null,
+      normalizeSidePanelPreference
+    })).toEqual({
+      layout: null,
+      display: DEFAULT_EDITOR_DISPLAY_PREFERENCE,
+      sidePanel: null
+    });
+    expect(normalizeSidePanelPreference).not.toHaveBeenCalled();
   });
 
   it('uses explicit editor preferences when admin editor defaults are missing', () => {

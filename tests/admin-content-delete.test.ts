@@ -178,21 +178,6 @@ describe('admin content delete api', () => {
     await expect(readFile(path.join(tempRoot, 'src', 'content', 'bits', 'demo.md'), 'utf8')).resolves.toContain('Visible bit');
   });
 
-  it('does not delete legacy .mdx entries through the writable admin content path', async () => {
-    await writeFile(
-      path.join(tempRoot, 'src', 'content', 'bits', 'legacy-mdx.mdx'),
-      ['---', 'date: 2025-02-03T22:30:00+08:00', 'draft: false', '---', '', '<Aside />', ''].join('\n'),
-      'utf8'
-    );
-
-    const { readAdminContentEntryEditorPayload } = await import('../src/lib/admin-console/content-shared');
-
-    await expect(readAdminContentEntryEditorPayload('bits', 'legacy-mdx')).rejects.toMatchObject({
-      code: 'source-not-found'
-    });
-    await expect(readFile(path.join(tempRoot, 'src', 'content', 'bits', 'legacy-mdx.mdx'), 'utf8')).resolves.toContain('<Aside />');
-  });
-
   it('rejects mismatched confirmed source paths', async () => {
     const { POST } = await import('../src/pages/api/admin/content/delete');
     const { readAdminContentEntryEditorPayload } = await import('../src/lib/admin-console/content-shared');

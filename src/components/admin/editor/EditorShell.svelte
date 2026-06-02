@@ -23,9 +23,8 @@ import EditorFooterActions from './EditorFooterActions.svelte';
 import EditorTopControls from './EditorTopControls.svelte';
 import EditorWorkspace from './EditorWorkspace.svelte';
 import {
-  bindArticleInfoTrigger,
-  bindEditorDetailsMenus,
-  bindEditorNavigationGuard,
+  ADMIN_EDITOR_DETAILS_MENU_SELECTORS,
+  bindEditorPageIntegration,
   mountEditorPageActionsPortal,
   observeElementInlineSize,
   syncArticleInfoTriggers
@@ -55,12 +54,8 @@ import {
   isEditorOutlineAvailableForInlineSize,
   mergeEditorDisplayPreference,
   normalizeEditorBodyValue,
-  readStoredEditorDisplayPreference,
-  readStoredEditorLayout,
-  readStoredEditorSidePanelPreference,
+  readRestoredEditorPreferences,
   readStoredWriteFeedback,
-  resolveEditorLayoutPreference,
-  resolveEditorSidePanelPreference,
   storeEditorDisplayPreference,
   storeEditorLayout,
   storeEditorSidePanelPreference,
@@ -87,6 +82,9 @@ import {
 import {
   scrollPreviewToOutlineKey as scrollPreviewElementToOutlineKey
 } from './editor-outline-scroll';
+import {
+  createEditorPreviewRequestGuard
+} from './editor-preview-request-guard';
 import type { MarkdownToolbarCommand } from './markdown-tools';
 import { createMarkdownCommandDispatcher } from './editor-markdown-command-dispatcher';
 import type { EssayEditorShellProps } from './editor-shell-props';
@@ -162,14 +160,8 @@ let outlineWantedOpen = $state(false);
 let outlineActiveTab = $state<EditorOutlineTab>('headings');
 let syntaxWantedOpen = $state(false);
 let syntaxMaximized = $state(false);
-let editorLayoutRestored = false;
-let editorDisplayPreferenceRestored = false;
-let editorSidePanelPreferenceRestored = false;
-let previewRequestId = 0;
-let previewTimer: number | null = null;
-let activePreviewAbortController: AbortController | null = null;
-let latestPreviewSource = '';
-let previewInitialized = false;
+let editorPreferencesRestored = false;
+const previewRequestGuard = createEditorPreviewRequestGuard();
 let toolbarCommand = $state<MarkdownToolbarCommand | null>(null);
 let outlineJumpCommand = $state<MarkdownOutlineJumpCommand | null>(null);
 let frontmatterPanelOpen = $state(initialSnapshot.articleInfoOpen);
@@ -562,7 +554,7 @@ const runPendingPreviewOutlineJump = async (outlineKey: string) => {
   if (scrolled) {
     pendingPreviewOutlineKey = null;
     scrollSyncController.setLastSource('preview');
-  } else if (latestPreviewSource === body) {
+  } else if (previewRequestGuard.getLatestSource() === body) {
     pendingPreviewOutlineKey = null;
   }
   scrollSyncController.releaseGuard(2);
@@ -588,16 +580,8 @@ const toggleFrontmatterPanel = (trigger?: HTMLElement | null) => {
   openFrontmatterPanel(trigger);
 };
 
-const clearPreviewTimer = () => {
-  if (previewTimer === null) return;
-  window.clearTimeout(previewTimer);
-  previewTimer = null;
-};
-
 const abortActivePreviewRequest = (invalidate = false) => {
-  if (invalidate) previewRequestId += 1;
-  activePreviewAbortController?.abort();
-  activePreviewAbortController = null;
+  previewRequestGuard.abortActiveRequest({ invalidate });
   if (invalidate) previewBusy = false;
 };
 
@@ -667,14 +651,8 @@ const requestContentWrite = async () => {
 const requestPreview = async () => {
   if (!previewEnabled) return;
 
-  const requestId = previewRequestId + 1;
-  previewRequestId = requestId;
   const sourceSnapshot = body;
-  latestPreviewSource = sourceSnapshot;
-
-  activePreviewAbortController?.abort();
-  const abortController = new AbortController();
-  activePreviewAbortController = abortController;
+  const previewRequest = previewRequestGuard.beginRequest(sourceSnapshot);
 
   previewBusy = true;
   previewError = '';
@@ -686,13 +664,10 @@ const requestPreview = async () => {
       collection,
       entryId,
       source: sourceSnapshot,
-      signal: abortController.signal
+      signal: previewRequest.signal
     });
 
-    if (requestId !== previewRequestId) return;
-    if (sourceSnapshot !== body) {
-      return;
-    }
+    if (!previewRequest.isCurrentForSource(body)) return;
 
     const previewResult = previewOutcome.result;
     if (!previewOutcome.responseOk || !previewOutcome.payloadOk || !previewResult) {
@@ -705,16 +680,13 @@ const requestPreview = async () => {
     previewHtml = previewResult.html;
     previewWarnings = previewResult.warnings;
   } catch {
-    if (abortController.signal.aborted) return;
-    if (requestId !== previewRequestId) return;
+    if (previewRequest.signal.aborted || !previewRequest.isCurrent()) return;
     previewError = '预览请求失败，请稍后重试';
     setStatus('error', '预览请求失败');
   } finally {
-    if (requestId === previewRequestId) {
+    if (previewRequest.isCurrent()) {
       previewBusy = false;
-      if (activePreviewAbortController === abortController) {
-        activePreviewAbortController = null;
-      }
+      previewRequestGuard.finishRequest(previewRequest);
     }
   }
 };
@@ -827,39 +799,26 @@ $effect(() => {
 });
 
 $effect(() => {
-  if (editorLayoutRestored) return;
-  editorLayoutRestored = true;
-  explicitEditorLayout = resolveEditorLayoutPreference(
-    readStoredEditorLayout(ADMIN_EDITOR_LAYOUT_STORAGE_KEY),
-    readDevAdminEditorDefaults()
-  );
-});
+  if (editorPreferencesRestored) return;
+  editorPreferencesRestored = true;
 
-$effect(() => {
-  if (editorDisplayPreferenceRestored) return;
-  editorDisplayPreferenceRestored = true;
+  const restoredPreferences = readRestoredEditorPreferences({
+    layoutStorageKey: ADMIN_EDITOR_LAYOUT_STORAGE_KEY,
+    displayPreferenceStorageKey: ADMIN_EDITOR_DISPLAY_PREFERENCE_STORAGE_KEY,
+    sidePanelPreferenceStorageKey: ADMIN_EDITOR_SIDE_PANEL_PREFERENCE_STORAGE_KEY,
+    adminDefaults: readDevAdminEditorDefaults()
+  });
 
-  const storedDisplayPreference = readStoredEditorDisplayPreference(
-    ADMIN_EDITOR_DISPLAY_PREFERENCE_STORAGE_KEY
-  ) ?? DEFAULT_EDITOR_DISPLAY_PREFERENCE;
+  explicitEditorLayout = restoredPreferences.layout;
+  lineNumbersEnabled = restoredPreferences.display.lineNumbers;
+  markdownHighlightTheme = restoredPreferences.display.markdownHighlightTheme;
 
-  lineNumbersEnabled = storedDisplayPreference.lineNumbers;
-  markdownHighlightTheme = storedDisplayPreference.markdownHighlightTheme;
-});
+  const sidePanelPreference = restoredPreferences.sidePanel;
+  if (!sidePanelPreference) return;
 
-$effect(() => {
-  if (editorSidePanelPreferenceRestored) return;
-  editorSidePanelPreferenceRestored = true;
-
-  const storedSidePanelPreference = resolveEditorSidePanelPreference(
-    readStoredEditorSidePanelPreference(ADMIN_EDITOR_SIDE_PANEL_PREFERENCE_STORAGE_KEY),
-    readDevAdminEditorDefaults()
-  );
-  if (!storedSidePanelPreference) return;
-
-  outlineWantedOpen = storedSidePanelPreference.outlineOpen;
-  outlineActiveTab = storedSidePanelPreference.outlineActiveTab;
-  syntaxWantedOpen = storedSidePanelPreference.syntaxOpen;
+  outlineWantedOpen = sidePanelPreference.outlineOpen;
+  outlineActiveTab = sidePanelPreference.outlineActiveTab;
+  syntaxWantedOpen = sidePanelPreference.syntaxOpen;
 });
 
 $effect(() => {
@@ -879,30 +838,20 @@ $effect(() => {
 });
 
 $effect(() => {
-  const cleanupDetailsMenus = bindEditorDetailsMenus({
-    selectors: [
-      '.admin-editor-shell__preview-detail',
-      '.admin-editor-markdown-toolbar__menu',
-      '.admin-editor-shell__action-more'
-    ]
-  });
-  const cleanupNavigationGuard = bindEditorNavigationGuard({
-    isDirty: () => isDirty,
-    message: LEAVE_CONFIRM_MESSAGE,
-    onBlocked: () => {
-      setStatus('warn', '请先保存或还原');
+  return bindEditorPageIntegration({
+    detailsMenuSelectors: ADMIN_EDITOR_DETAILS_MENU_SELECTORS,
+    navigationGuard: {
+      isDirty: () => isDirty,
+      message: LEAVE_CONFIRM_MESSAGE,
+      onBlocked: () => {
+        setStatus('warn', '请先保存或还原');
+      }
+    },
+    articleInfoTrigger: {
+      selector: ARTICLE_INFO_TRIGGER_SELECTOR,
+      onToggle: toggleFrontmatterPanel
     }
   });
-  const cleanupArticleInfoTrigger = bindArticleInfoTrigger({
-    selector: ARTICLE_INFO_TRIGGER_SELECTOR,
-    onToggle: toggleFrontmatterPanel
-  });
-
-  return () => {
-    cleanupDetailsMenus();
-    cleanupNavigationGuard();
-    cleanupArticleInfoTrigger();
-  };
 });
 
 $effect(() => {
@@ -951,6 +900,7 @@ $effect(() => {
 $effect(() => {
   return () => {
     scrollSyncController.destroy();
+    previewRequestGuard.destroy();
   };
 });
 
@@ -991,24 +941,20 @@ $effect(() => {
 
   const currentBody = body;
 
-  if (!previewInitialized) {
-    previewInitialized = true;
+  if (previewRequestGuard.consumeInitialRequest()) {
     void requestPreview();
     return;
   }
 
-  if (currentBody === latestPreviewSource) {
-    clearPreviewTimer();
+  if (currentBody === previewRequestGuard.getLatestSource()) {
+    previewRequestGuard.clearScheduledRequest();
     return;
   }
 
   abortActivePreviewRequest(true);
-  previewTimer = window.setTimeout(() => {
-    previewTimer = null;
+  return previewRequestGuard.scheduleRequest(currentBody, getPreviewDebounceMs(currentBody), () => {
     void requestPreview();
-  }, getPreviewDebounceMs(currentBody));
-
-  return clearPreviewTimer;
+  });
 });
 </script>
 

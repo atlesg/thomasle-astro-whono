@@ -10,7 +10,7 @@ type EditorPageActionsPortalOptions = {
 };
 
 type EditorDetailsMenusOptions = {
-  selectors: string[];
+  selectors: readonly string[];
   documentRoot?: Document;
 };
 
@@ -42,7 +42,21 @@ type ElementInlineSizeObserverOptions = {
   onInlineSize: (inlineSize: number) => void;
 };
 
+type EditorPageIntegrationOptions = {
+  detailsMenuSelectors: readonly string[];
+  navigationGuard: Omit<EditorNavigationGuardOptions, 'documentRoot' | 'windowRef'>;
+  articleInfoTrigger?: Omit<ArticleInfoTriggerBindingOptions, 'documentRoot'> | null;
+  documentRoot?: Document;
+  windowRef?: Window;
+};
+
 const noop = () => {};
+
+export const ADMIN_EDITOR_DETAILS_MENU_SELECTORS = [
+  '.admin-editor-shell__preview-detail',
+  '.admin-editor-markdown-toolbar__menu',
+  '.admin-editor-shell__action-more'
+] as const;
 
 const getDocumentRoot = (documentRoot?: Document): Document | null => {
   if (documentRoot) return documentRoot;
@@ -178,6 +192,38 @@ export const bindArticleInfoTrigger = ({
 
   return () => {
     root.removeEventListener('click', handleClick);
+  };
+};
+
+export const bindEditorPageIntegration = ({
+  detailsMenuSelectors,
+  navigationGuard,
+  articleInfoTrigger = null,
+  documentRoot,
+  windowRef
+}: EditorPageIntegrationOptions): Cleanup => {
+  const rootOption = documentRoot ? { documentRoot } : {};
+  const cleanups = [
+    bindEditorDetailsMenus({
+      selectors: detailsMenuSelectors,
+      ...rootOption
+    }),
+    bindEditorNavigationGuard({
+      ...navigationGuard,
+      ...rootOption,
+      ...(windowRef ? { windowRef } : {})
+    })
+  ];
+
+  if (articleInfoTrigger) {
+    cleanups.push(bindArticleInfoTrigger({
+      ...articleInfoTrigger,
+      ...rootOption
+    }));
+  }
+
+  return () => {
+    cleanups.forEach((cleanup) => cleanup());
   };
 };
 

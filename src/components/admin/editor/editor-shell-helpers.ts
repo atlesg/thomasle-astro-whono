@@ -30,6 +30,21 @@ export type EditorSidePanelPreference = {
   outlineActiveTab: EditorOutlineTab;
   syntaxOpen: boolean;
 };
+export type EditorRestoredPreferences = {
+  layout: EditorLayoutMode | null;
+  display: EditorDisplayPreference;
+  sidePanel: EditorSidePanelPreference | null;
+};
+export type EditorSidePanelPreferenceNormalizer = (
+  preference: EditorSidePanelPreference
+) => EditorSidePanelPreference;
+export type ReadRestoredEditorPreferencesOptions = {
+  layoutStorageKey: string;
+  displayPreferenceStorageKey: string;
+  sidePanelPreferenceStorageKey: string;
+  adminDefaults: AdminEditorDefaults | null;
+  normalizeSidePanelPreference?: EditorSidePanelPreferenceNormalizer;
+};
 export type EditorSidePanelState = {
   outlineOpen: boolean;
   syntaxOpen: boolean;
@@ -343,6 +358,8 @@ const isEditorLayoutMode = (value: unknown): value is EditorLayoutMode =>
 const isEditorOutlineTab = (value: unknown): value is EditorOutlineTab =>
   EDITOR_OUTLINE_TABS.includes(value as EditorOutlineTab);
 
+const identityEditorSidePanelPreference: EditorSidePanelPreferenceNormalizer = (preference) => preference;
+
 const parseEditorDisplayPreference = (value: unknown): EditorDisplayPreference | null => {
   if (!isRecord(value)) return null;
   if (typeof value.lineNumbers !== 'boolean') return null;
@@ -446,6 +463,28 @@ export const resolveEditorSidePanelPreference = (
     };
   }
   return storedPreference;
+};
+
+export const readRestoredEditorPreferences = ({
+  layoutStorageKey,
+  displayPreferenceStorageKey,
+  sidePanelPreferenceStorageKey,
+  adminDefaults,
+  normalizeSidePanelPreference = identityEditorSidePanelPreference
+}: ReadRestoredEditorPreferencesOptions): EditorRestoredPreferences => {
+  const displayPreference = readStoredEditorDisplayPreference(
+    displayPreferenceStorageKey
+  ) ?? DEFAULT_EDITOR_DISPLAY_PREFERENCE;
+  const sidePanelPreference = resolveEditorSidePanelPreference(
+    readStoredEditorSidePanelPreference(sidePanelPreferenceStorageKey),
+    adminDefaults
+  );
+
+  return {
+    layout: resolveEditorLayoutPreference(readStoredEditorLayout(layoutStorageKey), adminDefaults),
+    display: { ...displayPreference },
+    sidePanel: sidePanelPreference ? normalizeSidePanelPreference(sidePanelPreference) : null
+  };
 };
 
 export const storeEditorDisplayPreference = (storageKey: string, state: EditorDisplayPreference) => {

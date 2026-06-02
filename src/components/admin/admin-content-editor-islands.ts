@@ -1,0 +1,22 @@
+import type { AdminContentEditorIslandKey } from './admin-content-editor-registry';
+
+export type AdminContentEditorIslandComponent = any;
+
+export const ADMIN_CONTENT_EDITOR_ISLAND_KEYS = ['essay', 'bits', 'memo'] as const satisfies readonly AdminContentEditorIslandKey[];
+
+export const loadAdminContentEditorIsland = async (
+  island: AdminContentEditorIslandKey
+): Promise<AdminContentEditorIslandComponent> => {
+  switch (island) {
+    case 'essay':
+      return (await import('./editor/EssayEditorIsland.astro')).default;
+    case 'bits':
+      return (await import('./editor/BitsEditorIsland.astro')).default;
+    case 'memo':
+      return (await import('./editor/MemoEditorIsland.astro')).default;
+    default: {
+      const exhaustive: never = island;
+      throw new Error(`Unsupported admin content editor island: ${exhaustive}`);
+    }
+  }
+};

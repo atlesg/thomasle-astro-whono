@@ -1,0 +1,6 @@
+/* Admin Content Edit
+   聚合 /admin/content/[collection]/_edit/ 编辑页样式。
+*/
+
+@import "./base.css";
+@import "./editor.css";
