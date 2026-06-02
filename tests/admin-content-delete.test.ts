@@ -44,8 +44,8 @@ describe('admin content delete api', () => {
       'utf8'
     );
     await writeFile(
-      path.join(tempRoot, 'src', 'content', 'bits', 'demo.mdx'),
-      ['---', 'date: 2025-02-03T22:30:00+08:00', 'draft: false', '---', '', '<Aside />', ''].join('\n'),
+      path.join(tempRoot, 'src', 'content', 'bits', 'demo.md'),
+      ['---', 'date: 2025-02-03T22:30:00+08:00', 'draft: false', '---', '', 'Visible bit', ''].join('\n'),
       'utf8'
     );
     await writeFile(
@@ -175,7 +175,22 @@ describe('admin content delete api', () => {
     const payload = JSON.parse(await response.text());
     expect(payload.ok).toBe(false);
     expect(payload.errors[0]).toContain('已拒绝删除');
-    await expect(readFile(path.join(tempRoot, 'src', 'content', 'bits', 'demo.mdx'), 'utf8')).resolves.toContain('<Aside />');
+    await expect(readFile(path.join(tempRoot, 'src', 'content', 'bits', 'demo.md'), 'utf8')).resolves.toContain('Visible bit');
+  });
+
+  it('does not delete legacy .mdx entries through the writable admin content path', async () => {
+    await writeFile(
+      path.join(tempRoot, 'src', 'content', 'bits', 'legacy-mdx.mdx'),
+      ['---', 'date: 2025-02-03T22:30:00+08:00', 'draft: false', '---', '', '<Aside />', ''].join('\n'),
+      'utf8'
+    );
+
+    const { readAdminContentEntryEditorPayload } = await import('../src/lib/admin-console/content-shared');
+
+    await expect(readAdminContentEntryEditorPayload('bits', 'legacy-mdx')).rejects.toMatchObject({
+      code: 'source-not-found'
+    });
+    await expect(readFile(path.join(tempRoot, 'src', 'content', 'bits', 'legacy-mdx.mdx'), 'utf8')).resolves.toContain('<Aside />');
   });
 
   it('rejects mismatched confirmed source paths', async () => {

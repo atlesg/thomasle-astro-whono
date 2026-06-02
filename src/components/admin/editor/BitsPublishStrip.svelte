@@ -23,10 +23,22 @@ let {
 
 const DEFAULT_BITS_DATETIME_OFFSET = '+08:00';
 const BITS_DATETIME_RE = /^(\d{4}-\d{2}-\d{2})(?:[T\s](\d{2}:\d{2})(?::\d{2}(?:\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?)?$/;
+const INLINE_TAGS_PLACEHOLDER = '#摄影 #建筑';
+const LOCATION_PLACEHOLDER = '(可选)';
+const FIELD_ICONS = {
+  date: 'calendar-days',
+  time: 'clock-3',
+  tags: 'hash',
+  location: 'map-pin'
+} as const;
 const pad2 = (value: number): string => String(value).padStart(2, '0');
 
 let currentDateTimeUndoValue = $state<string | null>(null);
 let currentDateTimeAppliedValue = $state<string | null>(null);
+let tagsAutosizeEl = $state<HTMLSpanElement | null>(null);
+let locationAutosizeEl = $state<HTMLSpanElement | null>(null);
+let tagsMeasureEl = $state<HTMLSpanElement | null>(null);
+let locationMeasureEl = $state<HTMLSpanElement | null>(null);
 
 const normalizeOffset = (offset: string | undefined): string => {
   if (!offset) return DEFAULT_BITS_DATETIME_OFFSET;
@@ -63,6 +75,8 @@ const formatLocalBitsDateTime = (date = new Date()): string => {
 
 const dateTimeParts = $derived(getDateTimeParts(value.date));
 const tagsParts = $derived(splitBitsPublishTagsText(value.tagsText));
+const inlineTagsMeasureText = $derived(tagsParts.inlineTagsText || INLINE_TAGS_PLACEHOLDER);
+const locationMeasureText = $derived(tagsParts.locationText || LOCATION_PLACEHOLDER);
 const getIssue = (path: string): string =>
   issues.find((issue) => issue.path === path)?.message ?? '';
 const dateIssue = $derived(getIssue('date'));
@@ -118,12 +132,52 @@ const undoCurrentDateTime = () => {
   clearCurrentDateTimeUndo();
   updateValue('date', previousValue);
 };
+
+const syncAutosizeInputWidth = (host: HTMLSpanElement, measure: HTMLSpanElement) => {
+  const maxInlineSize = Number.parseFloat(getComputedStyle(host).maxWidth);
+  const measuredInlineSize = Math.ceil(measure.offsetWidth);
+  const nextInlineSize = Number.isFinite(maxInlineSize)
+    ? Math.min(measuredInlineSize, maxInlineSize)
+    : measuredInlineSize;
+  host.style.width = `${nextInlineSize}px`;
+};
+
+$effect(() => {
+  inlineTagsMeasureText;
+  locationMeasureText;
+
+  const tagsHost = tagsAutosizeEl;
+  const locationHost = locationAutosizeEl;
+  const tagsMeasure = tagsMeasureEl;
+  const locationMeasure = locationMeasureEl;
+  if (!tagsHost || !locationHost || !tagsMeasure || !locationMeasure) return;
+
+  const sync = () => {
+    syncAutosizeInputWidth(tagsHost, tagsMeasure);
+    syncAutosizeInputWidth(locationHost, locationMeasure);
+  };
+
+  sync();
+
+  if (typeof ResizeObserver === 'undefined') return;
+
+  const observer = new ResizeObserver(sync);
+  observer.observe(tagsHost);
+  observer.observe(locationHost);
+
+  return () => {
+    observer.disconnect();
+  };
+});
 </script>
 
 <section class="admin-bits-publish" aria-label="发布信息">
   <div class="admin-bits-publish-strip" aria-label="发布属性">
     <div class="admin-bits-publish-time-group" aria-label="发布时间">
       <label class="admin-bits-publish-field admin-bits-publish-field--date" class:is-invalid={Boolean(dateIssue)}>
+        <span class="admin-bits-publish-field__icon" aria-hidden="true">
+          <AdminEditorIcon name={FIELD_ICONS.date} size={12} strokeWidth={1.9} />
+        </span>
         <span class="admin-bits-publish-field__label">日期</span>
         <input
           class="admin-bits-publish-field__control"
@@ -136,6 +190,9 @@ const undoCurrentDateTime = () => {
       </label>
 
       <label class="admin-bits-publish-field admin-bits-publish-field--time" class:is-invalid={Boolean(dateIssue)}>
+        <span class="admin-bits-publish-field__icon" aria-hidden="true">
+          <AdminEditorIcon name={FIELD_ICONS.time} size={12} strokeWidth={1.9} />
+        </span>
         <span class="admin-bits-publish-field__label">时间</span>
         <input
           class="admin-bits-publish-field__control"
@@ -174,29 +231,41 @@ const undoCurrentDateTime = () => {
 
     <div class="admin-bits-publish-tags-group" aria-label="标签与地点">
       <label class="admin-bits-publish-field admin-bits-publish-field--tags" class:is-invalid={Boolean(tagsIssue)}>
+        <span class="admin-bits-publish-field__icon" aria-hidden="true">
+          <AdminEditorIcon name={FIELD_ICONS.tags} size={12} strokeWidth={1.9} />
+        </span>
         <span class="admin-bits-publish-field__label">标签</span>
-        <input
-          class="admin-bits-publish-field__control"
-          type="text"
-          value={tagsParts.inlineTagsText}
-          {disabled}
-          placeholder="#摄影 #建筑"
-          aria-invalid={tagsIssue ? 'true' : undefined}
-          oninput={(event) => updateInlineTagsText(event.currentTarget.value)}
-        />
+        <span class="admin-bits-publish-field__input admin-bits-publish-field__input--tags" bind:this={tagsAutosizeEl}>
+          <input
+            class="admin-bits-publish-field__control admin-bits-publish-field__control--autosize"
+            type="text"
+            value={tagsParts.inlineTagsText}
+            {disabled}
+            placeholder={INLINE_TAGS_PLACEHOLDER}
+            aria-invalid={tagsIssue ? 'true' : undefined}
+            oninput={(event) => updateInlineTagsText(event.currentTarget.value)}
+          />
+          <span class="admin-bits-publish-field__measure" bind:this={tagsMeasureEl} aria-hidden="true">{inlineTagsMeasureText}</span>
+        </span>
       </label>
 
       <label class="admin-bits-publish-field admin-bits-publish-field--location" class:is-invalid={Boolean(tagsIssue)}>
+        <span class="admin-bits-publish-field__icon" aria-hidden="true">
+          <AdminEditorIcon name={FIELD_ICONS.location} size={12} strokeWidth={1.9} />
+        </span>
         <span class="admin-bits-publish-field__label">地点</span>
-        <input
-          class="admin-bits-publish-field__control"
-          type="text"
-          value={tagsParts.locationText}
-          {disabled}
-          placeholder="(可选)"
-          aria-invalid={tagsIssue ? 'true' : undefined}
-          oninput={(event) => updateLocationText(event.currentTarget.value)}
-        />
+        <span class="admin-bits-publish-field__input admin-bits-publish-field__input--location" bind:this={locationAutosizeEl}>
+          <input
+            class="admin-bits-publish-field__control admin-bits-publish-field__control--autosize"
+            type="text"
+            value={tagsParts.locationText}
+            {disabled}
+            placeholder={LOCATION_PLACEHOLDER}
+            aria-invalid={tagsIssue ? 'true' : undefined}
+            oninput={(event) => updateLocationText(event.currentTarget.value)}
+          />
+          <span class="admin-bits-publish-field__measure" bind:this={locationMeasureEl} aria-hidden="true">{locationMeasureText}</span>
+        </span>
       </label>
     </div>
   </div>

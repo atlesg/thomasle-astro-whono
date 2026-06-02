@@ -261,6 +261,20 @@ describe('admin content write api', () => {
     );
   });
 
+  it('does not load non-memo .mdx entries into the writable editor path', async () => {
+    await writeFile(
+      path.join(tempRoot, 'src', 'content', 'bits', 'legacy-mdx.mdx'),
+      ['---', 'date: 2025-02-03T22:30:00+08:00', '---', '', '<Aside />', ''].join('\n'),
+      'utf8'
+    );
+
+    const { readAdminContentEntryEditorPayload } = await import('../src/lib/admin-console/content-shared');
+
+    await expect(readAdminContentEntryEditorPayload('bits', 'legacy-mdx')).rejects.toMatchObject({
+      code: 'source-not-found'
+    });
+  });
+
   it('returns structured json errors for invalid write inputs', async () => {
     const { POST } = await import('../src/pages/api/admin/content/entry');
 

@@ -23,7 +23,8 @@ describe('bits card view model', () => {
       date: new Date(2026, 4, 27, 8, 30),
       images: [
         { src: 'bits/a.webp', width: '800', height: 600, alt: 'A' },
-        { src: 'https://example.com/b.webp', width: 'bad', height: '0' }
+        { src: 'https://example.com/b.webp', width: 'bad', height: '0' },
+        { src: 'http://example.com/c.webp', width: 800, height: 600 }
       ],
       author: { name: 'Alice', avatar: 'author/alice.webp' },
       defaultAuthor: { name: 'Whono', avatar: 'author/default.webp' },

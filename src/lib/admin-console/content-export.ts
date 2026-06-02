@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import {
-  resolveAdminContentEntrySourcePath,
+  resolveAdminContentEntryLegacySourcePath,
   type AdminContentCollectionKey
 } from './content-shared';
 
@@ -74,7 +74,7 @@ export const readAdminContentSourceDownload = async (
   collection: AdminContentCollectionKey,
   entryId: string
 ): Promise<AdminContentSourceDownload> => {
-  const sourcePath = resolveAdminContentEntrySourcePath(collection, entryId);
+  const sourcePath = resolveAdminContentEntryLegacySourcePath(collection, entryId);
   const fileName = getAdminContentSourceDownloadName(collection, entryId, sourcePath);
   const sourceText = await readFile(sourcePath, 'utf8');
 

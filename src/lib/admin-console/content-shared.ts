@@ -353,9 +353,33 @@ export const resolveAdminContentEntrySourcePath = (
   }
 
   const basePath = path.join(getContentRoot(), collection, ...normalizedEntryId.split('/'));
-  const candidates = normalizedEntryId.endsWith('.md') || normalizedEntryId.endsWith('.mdx')
+  const candidates = CANONICAL_MARKDOWN_SOURCE_EXT_RE.test(normalizedEntryId)
     ? [basePath]
-    : [`${basePath}.md`, `${basePath}.mdx`, path.join(basePath, 'index.md'), path.join(basePath, 'index.mdx')];
+    : [`${basePath}.md`, path.join(basePath, 'index.md')];
+  const resolved = candidates.find((candidate) => existsSync(candidate));
+  if (!resolved) {
+    throw new AdminContentEntryResolutionError(
+      'source-not-found',
+      `未找到 content 源文件：${collection}/${normalizedEntryId}`
+    );
+  }
+
+  return resolved;
+};
+
+export const resolveAdminContentEntryLegacySourcePath = (
+  collection: AdminContentCollectionKey,
+  entryId: string
+): string => {
+  const normalizedEntryId = normalizeEntryId(entryId);
+  if (collection === 'memo') {
+    return resolveAdminContentEntrySourcePath(collection, normalizedEntryId);
+  }
+
+  const basePath = path.join(getContentRoot(), collection, ...normalizedEntryId.split('/'));
+  const candidates = LEGACY_MARKDOWN_SOURCE_EXT_RE.test(normalizedEntryId)
+    ? [basePath]
+    : [`${basePath}.md`, path.join(basePath, 'index.md'), `${basePath}.mdx`, path.join(basePath, 'index.mdx')];
   const resolved = candidates.find((candidate) => existsSync(candidate));
   if (!resolved) {
     throw new AdminContentEntryResolutionError(
@@ -412,6 +436,8 @@ const parseTagsText = (value: string): string[] =>
     .filter(Boolean);
 
 const POSITIVE_INTEGER_PATTERN = /^[1-9]\d*$/;
+const CANONICAL_MARKDOWN_SOURCE_EXT_RE = /\.md$/i;
+const LEGACY_MARKDOWN_SOURCE_EXT_RE = /\.(?:md|mdx)$/i;
 
 const parseOptionalPositiveInteger = (value: unknown): number | undefined => {
   if (value == null) {
@@ -554,7 +580,7 @@ export const listAdminCollectionSourceFiles = async (
         if (entry.isDirectory()) {
           return walk(fullPath);
         }
-        return entry.isFile() && /\.(md|mdx)$/i.test(entry.name) ? [fullPath] : [];
+        return entry.isFile() && CANONICAL_MARKDOWN_SOURCE_EXT_RE.test(entry.name) ? [fullPath] : [];
       })
     );
     return nested.flat();

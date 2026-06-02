@@ -1,5 +1,6 @@
 import { createWithBase, formatDateTime } from '../utils/format';
 import { deriveMarkdownText, truncateText } from '../utils/excerpt';
+import { normalizeBitsImageSource } from './bits-image-source';
 
 export const BITS_CARD_FULL_RENDER_LIMIT = 180;
 
@@ -105,7 +106,7 @@ export const buildBitsCardViewModel = ({
   const authorAvatarRaw = (author?.avatar?.trim() || defaultAuthor?.avatar?.trim() || '');
   const imageItems = images
     .map((image) => {
-      const src = (image.src ?? '').trim();
+      const src = normalizeBitsImageSource(image.src ?? '');
       if (!src) return null;
       const width = toPositiveInteger(image.width);
       const height = toPositiveInteger(image.height);

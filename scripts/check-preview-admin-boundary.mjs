@@ -24,8 +24,12 @@ const projectRoot = path.resolve('.');
 const astroCliPath = path.join(projectRoot, 'node_modules', 'astro', 'bin', 'astro.mjs');
 const defaultSettingsDir = path.join(projectRoot, 'src', 'data', 'settings');
 const ADMIN_CONTENT_SMOKE_ENTRY_ID = 'admin-console-guide';
+const ADMIN_CONTENT_BITS_SMOKE_ENTRY_ID = 'preview-admin-bit';
+const ADMIN_CONTENT_MEMO_SMOKE_ENTRY_ID = 'index';
 const ADMIN_CONTENT_SMOKE_INITIAL_TITLE = 'Admin Content HTTP Smoke';
 const ADMIN_CONTENT_SMOKE_UPDATED_TITLE = 'Admin Content HTTP Smoke Updated';
+const ADMIN_CONTENT_BITS_SMOKE_INITIAL_TITLE = 'Admin Bits HTTP Smoke';
+const ADMIN_CONTENT_MEMO_SMOKE_INITIAL_TITLE = 'Admin Memo HTTP Smoke';
 const previewHost = '127.0.0.1';
 const ADMIN_BOOTSTRAP_XSS_SENTINEL = '__ADMIN_BOOTSTRAP_XSS_SENTINEL__';
 const ADMIN_BOOTSTRAP_BREAKOUT_PAYLOAD = `</script><script>window.${ADMIN_BOOTSTRAP_XSS_SENTINEL}=1</script>`;
@@ -99,18 +103,59 @@ const createAdminContentSmokeSource = () => [
   ''
 ].join('\n');
 
+const createAdminBitsSmokeSource = () => [
+  '---',
+  `title: ${ADMIN_CONTENT_BITS_SMOKE_INITIAL_TITLE}`,
+  'description: Dev HTTP bits write smoke fixture',
+  'date: 2026-05-02T09:30:00+08:00',
+  'tags:',
+  '  - admin',
+  '  - smoke',
+  'draft: false',
+  'images:',
+  '  - src: bits/preview-admin-smoke.webp',
+  '    width: 800',
+  '    height: 600',
+  '    alt: Preview admin smoke',
+  '---',
+  '',
+  'Initial bits body.',
+  ''
+].join('\n');
+
+const createAdminMemoSmokeSource = () => [
+  '---',
+  `title: ${ADMIN_CONTENT_MEMO_SMOKE_INITIAL_TITLE}`,
+  'subtitle: Dev HTTP memo write smoke fixture',
+  'date: 2026-05-03',
+  'draft: false',
+  'slug: preview-admin-memo',
+  '---',
+  '',
+  'Initial memo body.',
+  ''
+].join('\n');
+
 const createTempAdminDevFixture = async () => {
   const tempRoot = await mkdtemp(path.join(tmpdir(), 'astro-whono-admin-dev-'));
   const settingsDir = path.join(tempRoot, 'settings');
   const contentEntryPath = path.join(tempRoot, 'src', 'content', 'essay', `${ADMIN_CONTENT_SMOKE_ENTRY_ID}.md`);
+  const bitsEntryPath = path.join(tempRoot, 'src', 'content', 'bits', `${ADMIN_CONTENT_BITS_SMOKE_ENTRY_ID}.md`);
+  const memoEntryPath = path.join(tempRoot, 'src', 'content', 'memo', `${ADMIN_CONTENT_MEMO_SMOKE_ENTRY_ID}.md`);
   await cp(defaultSettingsDir, settingsDir, { recursive: true });
   await mkdir(path.dirname(contentEntryPath), { recursive: true });
+  await mkdir(path.dirname(bitsEntryPath), { recursive: true });
+  await mkdir(path.dirname(memoEntryPath), { recursive: true });
   await writeFile(contentEntryPath, createAdminContentSmokeSource(), 'utf8');
+  await writeFile(bitsEntryPath, createAdminBitsSmokeSource(), 'utf8');
+  await writeFile(memoEntryPath, createAdminMemoSmokeSource(), 'utf8');
 
   return {
     tempRoot,
     settingsDir,
     contentEntryPath,
+    bitsEntryPath,
+    memoEntryPath,
     cleanup: () => rm(tempRoot, { recursive: true, force: true })
   };
 };
@@ -269,7 +314,7 @@ const assertAdminContentOverviewDevShell = (label, response) => {
   );
 };
 
-const assertAdminContentEditDevShell = (label, response) => {
+const assertAdminContentEditDevShell = (label, response, collection = 'content') => {
   expect(response.status === 200, `${label} returned ${response.status}`);
   expect(
     response.contentType.toLowerCase().includes('text/html'),
@@ -277,7 +322,7 @@ const assertAdminContentEditDevShell = (label, response) => {
   );
   expect(
     response.body.includes('data-admin-header-visible="false"'),
-    `${label} should use the compact essay edit shell`
+    `${label} should use the compact ${collection} edit shell`
   );
   assertNoAdminRouteNav(label, response.body);
   expect(
@@ -286,12 +331,43 @@ const assertAdminContentEditDevShell = (label, response) => {
   );
   expect(
     !response.body.includes('id="admin-content-bootstrap"'),
-    `${label} should not emit the legacy content editor bootstrap for essay`
+    `${label} should not emit the legacy content editor bootstrap for ${collection}`
   );
   expect(
     !response.body.includes(ADMIN_CONTENT_LOCAL_DEV_NOTICE),
     `${label} should show the dev content collection instead of the placeholder`
   );
+};
+
+const getDevContentEntryPayload = async (baseUrl, collection, entryId, expectedRevision) => {
+  const readResponse = await request(
+    baseUrl,
+    `/api/admin/content/entry/?collection=${collection}&entryId=${encodeURIComponent(entryId)}`
+  );
+
+  expect(
+    readResponse.status === 200,
+    `Dev GET /api/admin/content/entry/?collection=${collection} returned ${readResponse.status}`
+  );
+  expect(readResponse.json?.ok === true, `Dev Content GET for ${collection}/${entryId} did not return ok=true`);
+  expect(
+    readResponse.json?.payload?.collection === collection,
+    `Dev Content GET returned the wrong collection for ${collection}/${entryId}`
+  );
+  expect(
+    readResponse.json?.payload?.entryId === entryId,
+    `Dev Content GET returned the wrong entryId for ${collection}/${entryId}`
+  );
+  expect(
+    readResponse.json?.payload?.revision === expectedRevision,
+    `Dev Content GET returned an unexpected revision for ${collection}/${entryId}`
+  );
+  expect(
+    readResponse.json?.payload?.values && typeof readResponse.json.payload.values === 'object',
+    `Dev Content GET returned missing editor values for ${collection}/${entryId}`
+  );
+
+  return readResponse.json.payload;
 };
 
 const assertAdminThemeDevBootstrapSafe = (label, response) => {
@@ -396,6 +472,116 @@ const runDevAdminContentWriteSmoke = async (baseUrl, fixture) => {
     saveResponse.json?.payload?.revision === hashSourceText(afterSave)
       && saveResponse.json.payload.revision !== initialRevision,
     'Dev Content write did not return a fresh revision'
+  );
+};
+
+const runDevAdminBitsContentWriteSmoke = async (baseUrl, fixture) => {
+  const beforeSave = await readFile(fixture.bitsEntryPath, 'utf8');
+  const initialRevision = hashSourceText(beforeSave);
+  const payload = await getDevContentEntryPayload(
+    baseUrl,
+    'bits',
+    ADMIN_CONTENT_BITS_SMOKE_ENTRY_ID,
+    initialRevision
+  );
+  expect(
+    payload.values.title === ADMIN_CONTENT_BITS_SMOKE_INITIAL_TITLE,
+    'Dev Bits Content GET returned an unexpected title'
+  );
+
+  const nextBody = [
+    'Updated bits body through the real dev HTTP content write smoke.',
+    ''
+  ].join('\n');
+  const saveResponse = await request(
+    baseUrl,
+    '/api/admin/content/entry/',
+    createJsonRequestInit(baseUrl, {
+      collection: 'bits',
+      entryId: ADMIN_CONTENT_BITS_SMOKE_ENTRY_ID,
+      revision: payload.revision,
+      frontmatter: payload.values,
+      body: nextBody
+    })
+  );
+
+  expect(saveResponse.status === 200, `Dev POST bits /api/admin/content/entry/ returned ${saveResponse.status}`);
+  expect(saveResponse.json?.ok === true, 'Dev Bits Content write did not succeed');
+  expect(saveResponse.json?.result?.changed === true, 'Dev Bits Content write did not report changes');
+  expect(saveResponse.json?.result?.written === true, 'Dev Bits Content write did not mark written=true');
+  expect(
+    Array.isArray(saveResponse.json?.result?.changedFields)
+      && saveResponse.json.result.changedFields.length === 1
+      && saveResponse.json.result.changedFields[0] === 'body',
+    'Dev Bits Content write should only report a body change'
+  );
+  expect(
+    saveResponse.json?.payload?.bodyText === nextBody,
+    'Dev Bits Content write did not return the updated body'
+  );
+
+  const afterSave = await readFile(fixture.bitsEntryPath, 'utf8');
+  expect(afterSave !== beforeSave, 'Dev Bits Content write did not update the source file');
+  expect(afterSave.endsWith(nextBody), 'Dev Bits Content write persisted an unexpected body');
+  expect(
+    saveResponse.json?.payload?.revision === hashSourceText(afterSave)
+      && saveResponse.json.payload.revision !== initialRevision,
+    'Dev Bits Content write did not return a fresh revision'
+  );
+};
+
+const runDevAdminMemoContentWriteSmoke = async (baseUrl, fixture) => {
+  const beforeSave = await readFile(fixture.memoEntryPath, 'utf8');
+  const initialRevision = hashSourceText(beforeSave);
+  const payload = await getDevContentEntryPayload(
+    baseUrl,
+    'memo',
+    ADMIN_CONTENT_MEMO_SMOKE_ENTRY_ID,
+    initialRevision
+  );
+  expect(
+    payload.values.title === ADMIN_CONTENT_MEMO_SMOKE_INITIAL_TITLE,
+    'Dev Memo Content GET returned an unexpected title'
+  );
+
+  const nextBody = [
+    'Updated memo body through the real dev HTTP content write smoke.',
+    ''
+  ].join('\n');
+  const saveResponse = await request(
+    baseUrl,
+    '/api/admin/content/entry/',
+    createJsonRequestInit(baseUrl, {
+      collection: 'memo',
+      entryId: ADMIN_CONTENT_MEMO_SMOKE_ENTRY_ID,
+      revision: payload.revision,
+      frontmatter: payload.values,
+      body: nextBody
+    })
+  );
+
+  expect(saveResponse.status === 200, `Dev POST memo /api/admin/content/entry/ returned ${saveResponse.status}`);
+  expect(saveResponse.json?.ok === true, 'Dev Memo Content write did not succeed');
+  expect(saveResponse.json?.result?.changed === true, 'Dev Memo Content write did not report changes');
+  expect(saveResponse.json?.result?.written === true, 'Dev Memo Content write did not mark written=true');
+  expect(
+    Array.isArray(saveResponse.json?.result?.changedFields)
+      && saveResponse.json.result.changedFields.length === 1
+      && saveResponse.json.result.changedFields[0] === 'body',
+    'Dev Memo Content write should only report a body change'
+  );
+  expect(
+    saveResponse.json?.payload?.bodyText === nextBody,
+    'Dev Memo Content write did not return the updated body'
+  );
+
+  const afterSave = await readFile(fixture.memoEntryPath, 'utf8');
+  expect(afterSave !== beforeSave, 'Dev Memo Content write did not update the source file');
+  expect(afterSave.endsWith(nextBody), 'Dev Memo Content write persisted an unexpected body');
+  expect(
+    saveResponse.json?.payload?.revision === hashSourceText(afterSave)
+      && saveResponse.json.payload.revision !== initialRevision,
+    'Dev Memo Content write did not return a fresh revision'
   );
 };
 
@@ -579,9 +765,29 @@ export const runDevAdminSettingsSmokeCheck = async () => {
 
     const contentOverviewResponse = await request(baseUrl, '/admin/content/');
     const contentEssayEditResponse = await request(baseUrl, '/admin/content/essay/_edit/admin-console-guide/');
+    const contentBitsEditResponse = await request(
+      baseUrl,
+      `/admin/content/bits/_edit/${ADMIN_CONTENT_BITS_SMOKE_ENTRY_ID}/`
+    );
+    const contentMemoEditResponse = await request(
+      baseUrl,
+      `/admin/content/memo/_edit/${ADMIN_CONTENT_MEMO_SMOKE_ENTRY_ID}/`
+    );
     assertAdminContentOverviewDevShell('Dev GET /admin/content/', contentOverviewResponse);
-    assertAdminContentEditDevShell('Dev GET /admin/content/essay/_edit/admin-console-guide/', contentEssayEditResponse);
+    assertAdminContentEditDevShell('Dev GET /admin/content/essay/_edit/admin-console-guide/', contentEssayEditResponse, 'essay');
+    assertAdminContentEditDevShell(
+      `Dev GET /admin/content/bits/_edit/${ADMIN_CONTENT_BITS_SMOKE_ENTRY_ID}/`,
+      contentBitsEditResponse,
+      'bits'
+    );
+    assertAdminContentEditDevShell(
+      `Dev GET /admin/content/memo/_edit/${ADMIN_CONTENT_MEMO_SMOKE_ENTRY_ID}/`,
+      contentMemoEditResponse,
+      'memo'
+    );
     await runDevAdminContentWriteSmoke(baseUrl, fixture);
+    await runDevAdminBitsContentWriteSmoke(baseUrl, fixture);
+    await runDevAdminMemoContentWriteSmoke(baseUrl, fixture);
 
     const uiSettingsPath = path.join(fixture.settingsDir, 'ui.json');
     const beforeDryRun = await readFile(uiSettingsPath, 'utf8');

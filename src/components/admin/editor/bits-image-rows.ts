@@ -20,6 +20,31 @@ export const createEmptyBitsImageRow = (): BitsImageRowDraft => ({
   alt: ''
 });
 
+export const updateBitsImageRowSource = (
+  row: BitsImageRowDraft,
+  src: string
+): BitsImageRowDraft => ({
+  ...row,
+  src,
+  width: '',
+  height: ''
+});
+
+export const applyBitsImageRowAsset = (
+  row: BitsImageRowDraft,
+  asset: {
+    src: string;
+    width?: number | string | null | undefined;
+    height?: number | string | null | undefined;
+    alt?: string | null | undefined;
+  }
+): BitsImageRowDraft => ({
+  src: asset.src,
+  width: toText(asset.width),
+  height: toText(asset.height),
+  alt: asset.alt === undefined ? row.alt : toText(asset.alt)
+});
+
 export const parseBitsImageRows = (value: string): BitsImageRowDraft[] => {
   try {
     const parsed = JSON.parse(value) as unknown;
