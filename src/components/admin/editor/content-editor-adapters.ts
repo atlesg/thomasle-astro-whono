@@ -5,16 +5,14 @@ import type {
   AdminEssayEditorValues,
   AdminMemoEditorValues
 } from '../../../lib/admin-console/content-shared';
+import { getAdminContentCollectionCapability } from '../../../lib/admin-console/content-collections';
 import { getWriteFieldLabel } from './editor-shell-helpers';
 
 type ContentEditorCapabilities = {
   body: boolean;
   preview: boolean;
   bodyImageInsert: boolean;
-  bodyImageUpload: boolean;
   bodyGalleryInsert: boolean;
-  imageUpload: boolean;
-  imagePicker: boolean;
   imageArray: boolean;
   essayOutline: boolean;
   delete: boolean;
@@ -157,20 +155,30 @@ const MEMO_FIELD_LABELS: Readonly<Record<string, string>> = {
   body: '正文'
 };
 
+const buildContentEditorCapabilities = (
+  collection: AdminContentWriteCollectionKey,
+  editorCapabilities: Pick<
+    ContentEditorCapabilities,
+    'body' | 'preview' | 'bodyImageInsert' | 'bodyGalleryInsert' | 'imageArray' | 'essayOutline'
+  >
+): ContentEditorCapabilities => {
+  const collectionCapability = getAdminContentCollectionCapability(collection);
+  return {
+    ...editorCapabilities,
+    delete: collectionCapability.deletable
+  };
+};
+
 const ESSAY_ADAPTER: ContentEditorAdapter = {
   collection: 'essay',
-  capabilities: {
+  capabilities: buildContentEditorCapabilities('essay', {
     body: true,
     preview: true,
     bodyImageInsert: true,
-    bodyImageUpload: true,
     bodyGalleryInsert: true,
-    imageUpload: false,
-    imagePicker: false,
     imageArray: false,
-    essayOutline: true,
-    delete: true
-  },
+    essayOutline: true
+  }),
   frontmatterIssuePaths: ESSAY_FRONTMATTER_ISSUE_PATHS,
   isFrontmatterIssuePath: (path) => hasExactFrontmatterIssuePath(ESSAY_FRONTMATTER_ISSUE_PATHS, path),
   cloneValues: cloneContentEditorValues,
@@ -181,18 +189,14 @@ const ESSAY_ADAPTER: ContentEditorAdapter = {
 
 const BITS_ADAPTER: ContentEditorAdapter = {
   collection: 'bits',
-  capabilities: {
+  capabilities: buildContentEditorCapabilities('bits', {
     body: true,
     preview: true,
     bodyImageInsert: false,
-    bodyImageUpload: false,
     bodyGalleryInsert: false,
-    imageUpload: true,
-    imagePicker: true,
     imageArray: true,
-    essayOutline: false,
-    delete: true
-  },
+    essayOutline: false
+  }),
   frontmatterIssuePaths: BITS_FRONTMATTER_ISSUE_PATHS,
   isFrontmatterIssuePath: isBitsFrontmatterIssuePath,
   cloneValues: cloneContentEditorValues,
@@ -203,18 +207,14 @@ const BITS_ADAPTER: ContentEditorAdapter = {
 
 const MEMO_ADAPTER: ContentEditorAdapter = {
   collection: 'memo',
-  capabilities: {
+  capabilities: buildContentEditorCapabilities('memo', {
     body: true,
     preview: true,
     bodyImageInsert: true,
-    bodyImageUpload: true,
     bodyGalleryInsert: false,
-    imageUpload: false,
-    imagePicker: false,
     imageArray: false,
-    essayOutline: false,
-    delete: false
-  },
+    essayOutline: false
+  }),
   frontmatterIssuePaths: MEMO_FRONTMATTER_ISSUE_PATHS,
   isFrontmatterIssuePath: (path) => hasExactFrontmatterIssuePath(MEMO_FRONTMATTER_ISSUE_PATHS, path),
   cloneValues: cloneContentEditorValues,

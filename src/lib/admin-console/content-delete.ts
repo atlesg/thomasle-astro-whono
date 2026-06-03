@@ -4,6 +4,7 @@ import {
   resolveAdminContentEntrySourcePath,
   type AdminContentCollectionKey
 } from './content-shared';
+import { getAdminContentCollectionCapability } from './content-collections';
 import type { AdminContentDeletableCollectionKey } from './content-delete-contract';
 import { invalidateAdminImageCaches } from './image-shared';
 
@@ -22,9 +23,7 @@ export type AdminContentDeleteResult = {
 };
 
 export const getAdminContentDeleteUnsupportedReason = (collection: AdminContentCollectionKey): string | null =>
-  collection === 'memo'
-    ? 'memo 是固定单页内容，不支持从 Content Console 删除'
-    : null;
+  getAdminContentCollectionCapability(collection).deleteUnsupportedReason;
 
 const getProjectRoot = (): string => process.env.ASTRO_WHONO_INTERNAL_TEST_PROJECT_ROOT?.trim() || process.cwd();
 

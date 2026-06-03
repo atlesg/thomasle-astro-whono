@@ -13,6 +13,7 @@ const contentRoutesModule = await import('../src/lib/admin-console/content-route
 const {
   filterAdminContentItems,
   getAdminContentConsolePageData,
+  getAdminContentFilterHref,
   getAdminContentFilterState,
   getAdminContentPublicFallbackLabel
 } = await import('../src/lib/admin-console/content');
@@ -31,13 +32,15 @@ const { getAdminContentEntryListHref } = contentRoutesModule;
 const COLLECTION_LABELS: Record<AdminContentCollectionKey, string> = {
   essay: '随笔',
   bits: '絮语',
-  memo: '小记'
+  memo: '小记',
+  about: '关于'
 };
 
 const defaultManifest: AdminContentSourceManifest = {
   essay: ['src/content/essay/essay-a.md', 'src/content/essay/essay-b.md'],
   bits: ['src/content/bits/bits-a.md'],
-  memo: ['src/content/memo/index.md']
+  memo: ['src/content/memo/index.md'],
+  about: ['src/content/about/index.md']
 };
 
 let sourceItemsByCollection: Record<AdminContentCollectionKey, AdminContentIndexItem[]>;
@@ -103,6 +106,25 @@ const createDefaultItems = (): Record<AdminContentCollectionKey, AdminContentInd
       tags: [],
       searchHaystack: 'memo memo subtitle index'
     })
+  ],
+  about: [
+    createItem({
+      collection: 'about',
+      collectionLabel: '关于',
+      id: 'index',
+      publicEntryId: 'index',
+      title: '关于',
+      slug: 'about',
+      relativePath: 'src/content/about/index.md',
+      publicHref: '/about/',
+      archive: null,
+      date: null,
+      dateLabel: '固定单页',
+      year: null,
+      tags: [],
+      searchHaystack: '关于 about index friends contact',
+      readonlyReason: 'about 固定页编辑器尚未接入；当前仅支持从 Content Console 查看与导出源文件'
+    })
   ]
 });
 
@@ -146,6 +168,10 @@ const setSourceItems = (
       ...item,
       searchHaystack: `${item.searchHaystack} memo body text`
     })),
+    about: sourceItemsByCollection.about.map((item) => ({
+      ...item,
+      searchHaystack: `${item.searchHaystack} about body text`
+    })),
     ...bodyItems
   };
 };
@@ -155,6 +181,7 @@ const setSourceCounts = (counts: Partial<AdminContentSourceCountMap> = {}) => {
     essay: 2,
     bits: 1,
     memo: 1,
+    about: 1,
     ...counts
   };
 };
@@ -297,7 +324,7 @@ describe('admin-console/content', () => {
     expect(mockedSourceIndex.loadAdminContentSourceIndex).toHaveBeenCalledTimes(1);
     expect(mockedSourceIndex.loadAdminContentSourceIndex).toHaveBeenCalledWith(defaultManifest, 'essay');
     expect(mockedSourceIndex.loadAdminContentSourceIndexWithBody).not.toHaveBeenCalled();
-    expect(pageData.totalCount).toBe(4);
+    expect(pageData.totalCount).toBe(5);
     expect(pageData.mode).toBe('collection');
     expect(pageData.pagination).toEqual({
       page: 1,
@@ -308,10 +335,11 @@ describe('admin-console/content', () => {
       hasNext: false
     });
     expect(pageData.collectionOptions).toEqual([
-      { value: 'all', label: '全部内容', count: 4 },
+      { value: 'all', label: '全部内容', count: 5 },
       { value: 'essay', label: '随笔', count: 2 },
       { value: 'bits', label: '絮语', count: 1 },
-      { value: 'memo', label: '小记', count: 1 }
+      { value: 'memo', label: '小记', count: 1 },
+      { value: 'about', label: '关于', count: 1 }
     ]);
     expect('tagOptions' in pageData).toBe(false);
     expect(pageData.sections).toHaveLength(1);
@@ -358,7 +386,7 @@ describe('admin-console/content', () => {
     expect(pageData.filterState.page).toBe(1);
     expect(pageData.pagination).toBeNull();
     expect(mockedSourceIndex.loadAdminContentSourceIndexWithBody).not.toHaveBeenCalled();
-    expect(mockedSourceIndex.loadAdminContentSourceIndex).toHaveBeenCalledTimes(3);
+    expect(mockedSourceIndex.loadAdminContentSourceIndex).toHaveBeenCalledTimes(4);
     expect(pageData.filteredCount).toBe(1);
     expect(pageData.sections.find((section) => section.collection === 'essay')?.items[0]?.id)
       .toBe('admin-console-guide');
@@ -496,7 +524,7 @@ describe('admin-console/content', () => {
       title: `Essay ${index + 1}`
     }));
     setSourceItems({ essay: entries });
-    setSourceCounts({ essay: 25, bits: 0, memo: 0 });
+    setSourceCounts({ essay: 25, bits: 0, memo: 0, about: 0 });
 
     const secondPage = await getAdminContentConsolePageData(new URLSearchParams([
       ['collection', 'essay'],
@@ -525,8 +553,8 @@ describe('admin-console/content', () => {
       id: `overview-${index + 1}`,
       publicEntryId: `overview-${index + 1}`
     }));
-    setSourceItems({ essay: entries, bits: [], memo: [] });
-    setSourceCounts({ essay: 10, bits: 0, memo: 0 });
+    setSourceItems({ essay: entries, bits: [], memo: [], about: [] });
+    setSourceCounts({ essay: 10, bits: 0, memo: 0, about: 0 });
 
     const pageData = await getAdminContentConsolePageData(new URLSearchParams());
     const essaySection = pageData.sections.find((section) => section.collection === 'essay');
@@ -577,7 +605,7 @@ describe('admin-console/content', () => {
       });
     });
     setSourceItems({ bits: [draftItem, ...publishedEntries] });
-    setSourceCounts({ essay: 0, bits: 21, memo: 0 });
+    setSourceCounts({ essay: 0, bits: 21, memo: 0, about: 0 });
 
     const firstPage = await getAdminContentConsolePageData(new URLSearchParams([
       ['collection', 'bits']
@@ -606,6 +634,15 @@ describe('admin-console/content', () => {
     ).toContain('/memo/');
     expect(
       getAdminContentPublicFallbackLabel(createItem({
+        collection: 'about',
+        collectionLabel: '关于',
+        id: 'index',
+        publicHref: null,
+        relativePath: 'src/content/about/index.md'
+      }))
+    ).toContain('/about/');
+    expect(
+      getAdminContentPublicFallbackLabel(createItem({
         collection: 'bits',
         collectionLabel: '絮语',
         id: 'example',
@@ -614,5 +651,69 @@ describe('admin-console/content', () => {
         relativePath: 'src/content/bits/example.md'
       }))
     ).toContain('bit-bits-example');
+  });
+
+  it('keeps fixed-page about scope out of article filters and pagination', async () => {
+    const pageData = await getAdminContentConsolePageData(new URLSearchParams([
+      ['collection', 'about'],
+      ['draft', 'draft'],
+      ['tag', 'Admin'],
+      ['year', '2026'],
+      ['sort', 'title'],
+      ['page', '3']
+    ]));
+
+    expect(pageData.mode).toBe('collection');
+    expect(pageData.filterState).toMatchObject({
+      collection: 'about',
+      draft: 'all',
+      tag: '',
+      year: null,
+      sort: 'recent',
+      page: 1
+    });
+    expect(pageData.pagination).toBeNull();
+    expect(pageData.sections).toHaveLength(1);
+    expect(pageData.sections[0]?.collection).toBe('about');
+    expect(pageData.sections[0]?.items[0]).toMatchObject({
+      collection: 'about',
+      title: '关于',
+      publicHref: '/about/',
+      readonlyReason: expect.stringContaining('尚未接入')
+    });
+  });
+
+  it('drops article-only filter params when building fixed-page scope links', () => {
+    const filterState = getAdminContentFilterState(new URLSearchParams([
+      ['collection', 'essay'],
+      ['q', 'about body'],
+      ['draft', 'draft'],
+      ['tag', 'Admin'],
+      ['year', '2026'],
+      ['sort', 'title'],
+      ['page', '3']
+    ]));
+
+    expect(getAdminContentFilterHref(filterState, { collection: 'about' }))
+      .toBe('/admin/content/?q=about+body&collection=about');
+    expect(getAdminContentFilterHref(filterState, { collection: 'memo' }))
+      .toBe('/admin/content/?q=about+body&collection=memo');
+    expect(getAdminContentFilterHref(filterState, { collection: 'bits' }))
+      .toBe('/admin/content/?q=about+body&collection=bits&draft=draft&sort=title&year=2026');
+    expect(getAdminContentFilterHref(filterState, { collection: 'all' }))
+      .toBe('/admin/content/?q=about+body');
+  });
+
+  it('loads about body search text through the fixed-page bodySearch capability', async () => {
+    const pageData = await getAdminContentConsolePageData(new URLSearchParams([
+      ['collection', 'about'],
+      ['q', 'body']
+    ]));
+
+    expect(mockedSourceIndex.loadAdminContentSourceIndex).not.toHaveBeenCalled();
+    expect(mockedSourceIndex.loadAdminContentSourceIndexWithBody).toHaveBeenCalledTimes(1);
+    expect(mockedSourceIndex.loadAdminContentSourceIndexWithBody).toHaveBeenCalledWith(defaultManifest, 'about');
+    expect(pageData.filteredCount).toBe(1);
+    expect(pageData.sections[0]?.items[0]?.collection).toBe('about');
   });
 });

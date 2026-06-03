@@ -4,6 +4,7 @@ import {
   resolveAdminContentEntryLegacySourcePath,
   type AdminContentCollectionKey
 } from './content-shared';
+import { getAdminContentFixedPageCapability } from './content-collections';
 
 export type AdminContentSourceDownload = {
   collection: AdminContentCollectionKey;
@@ -42,7 +43,7 @@ const getEntryDownloadStem = (collection: AdminContentCollectionKey, entryId: st
   const normalizedEntryId = entryId.trim().replace(/\\/g, '/').replace(/\/+$/, '');
   const segments = normalizedEntryId.split('/').filter(Boolean);
   const lastSegment = segments.at(-1) ?? '';
-  return collection === 'memo' && lastSegment.toLowerCase() === 'index'
+  return getAdminContentFixedPageCapability(collection) && lastSegment.toLowerCase() === 'index'
     ? collection
     : lastSegment || collection;
 };

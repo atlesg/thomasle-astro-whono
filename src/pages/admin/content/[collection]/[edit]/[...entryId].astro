@@ -1,13 +1,13 @@
 ---
 import AdminContentEditPage from '../../../../../components/admin/AdminContentEditPage.astro';
 import {
-  ADMIN_CONTENT_COLLECTIONS,
+  ADMIN_CONTENT_WRITE_COLLECTION_KEYS,
+  getAdminContentReadOnlyReason,
   isAdminContentCollectionKey,
-  type AdminContentCollectionKey
-} from '../../../../../lib/admin-console/content';
-import {
+  isAdminContentWriteCollectionKey,
   listAdminCollectionSourceFiles,
-  resolveAdminContentEntryIdFromSourcePath
+  resolveAdminContentEntryIdFromSourcePath,
+  type AdminContentWriteCollectionKey
 } from '../../../../../lib/admin-console/content-shared';
 
 export const getStaticPaths = async () => {
@@ -16,7 +16,7 @@ export const getStaticPaths = async () => {
   }
 
   const paths = await Promise.all(
-    ADMIN_CONTENT_COLLECTIONS.map(async (collection) => {
+    ADMIN_CONTENT_WRITE_COLLECTION_KEYS.map(async (collection) => {
       const files = await listAdminCollectionSourceFiles(collection);
       return files.map((filePath) => {
         const entryId = resolveAdminContentEntryIdFromSourcePath(collection, filePath);
@@ -35,11 +35,15 @@ if (!isAdminContentCollectionKey(collectionParam ?? '')) {
   throw new Error(`Unsupported admin content edit collection route: ${collectionParam ?? '(missing)'}`);
 }
 
+if (!isAdminContentWriteCollectionKey(collectionParam ?? '')) {
+  throw new Error(getAdminContentReadOnlyReason(collectionParam) ?? `Admin content collection is readonly: ${collectionParam}`);
+}
+
 if (Astro.params.edit !== '_edit') {
   throw new Error(`Unsupported admin content edit segment: ${Astro.params.edit ?? '(missing)'}`);
 }
 
-const collection: AdminContentCollectionKey = collectionParam;
+const collection: AdminContentWriteCollectionKey = collectionParam;
 const entryId = Astro.params.entryId;
 if (typeof entryId !== 'string' || entryId.length === 0) {
   throw new Error(`Missing admin content edit entryId for ${collection}`);

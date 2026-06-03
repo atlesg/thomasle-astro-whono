@@ -163,6 +163,15 @@ export const GET: APIRoute = async ({ url }) => {
     );
   }
 
+  if (!isAdminContentWriteCollectionKey(collection)) {
+    const message = getAdminContentReadOnlyReason(collection) ?? `当前 collection 暂不支持写盘：${collection}`;
+    return createJsonErrorResponse(
+      400,
+      [message],
+      [{ path: 'collection', message }]
+    );
+  }
+
   if (!entryId) {
     return createJsonErrorResponse(400, ['查询参数缺少 entryId'], [{ path: 'entryId', message: '查询参数缺少 entryId' }]);
   }

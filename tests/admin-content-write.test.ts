@@ -29,6 +29,7 @@ describe('admin content write api', () => {
     await mkdir(path.join(tempRoot, 'src', 'content', 'essay'), { recursive: true });
     await mkdir(path.join(tempRoot, 'src', 'content', 'bits'), { recursive: true });
     await mkdir(path.join(tempRoot, 'src', 'content', 'memo'), { recursive: true });
+    await mkdir(path.join(tempRoot, 'src', 'content', 'about'), { recursive: true });
     await mkdir(path.join(tempRoot, 'public', 'author'), { recursive: true });
 
     await writeFile(path.join(tempRoot, 'public', 'author', 'alice.webp'), 'avatar');
@@ -79,6 +80,11 @@ describe('admin content write api', () => {
         'memo body',
         ''
       ].join('\n'),
+      'utf8'
+    );
+    await writeFile(
+      path.join(tempRoot, 'src', 'content', 'about', 'index.md'),
+      ['---', 'friendsTitle: Friends', '---', '', 'about body', ''].join('\n'),
       'utf8'
     );
   });
@@ -273,6 +279,35 @@ describe('admin content write api', () => {
     await expect(readAdminContentEntryEditorPayload('bits', 'legacy-mdx')).rejects.toMatchObject({
       code: 'source-not-found'
     });
+  });
+
+  it('rejects about editor payload and write requests until the about editor contract is implemented', async () => {
+    const { readAdminContentEntryEditorPayload } = await import('../src/lib/admin-console/content-shared');
+    const { POST, GET } = await import('../src/pages/api/admin/content/entry');
+
+    await expect(readAdminContentEntryEditorPayload('about' as never, 'index')).rejects.toBeTruthy();
+
+    const getUrl = new URL('http://127.0.0.1:4321/api/admin/content/entry?collection=about&entryId=index');
+    const getResponse = await GET({ url: getUrl } as never);
+    expect(getResponse.status).toBe(400);
+    expect(JSON.parse(await getResponse.text()).errors[0]).toContain('about 固定页编辑器尚未接入');
+
+    const postResponse = await POST({
+      request: createJsonRequest('http://127.0.0.1:4321/api/admin/content/entry?dryRun=1', {
+        collection: 'about',
+        entryId: 'index',
+        revision: 'stale',
+        frontmatter: {},
+        body: 'next about body'
+      }),
+      url: new URL('http://127.0.0.1:4321/api/admin/content/entry?dryRun=1')
+    } as never);
+
+    expect(postResponse.status).toBe(400);
+    const payload = JSON.parse(await postResponse.text());
+    expect(payload.ok).toBe(false);
+    expect(payload.errors[0]).toContain('about 固定页编辑器尚未接入');
+    await expect(readFile(path.join(tempRoot, 'src', 'content', 'about', 'index.md'), 'utf8')).resolves.toContain('about body');
   });
 
   it('returns structured json errors for invalid write inputs', async () => {

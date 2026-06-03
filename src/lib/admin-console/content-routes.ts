@@ -1,18 +1,22 @@
 import {
   ADMIN_CONTENT_COLLECTION_KEYS,
+  getAdminContentCollectionCapability,
   isAdminContentCollectionKey,
   type AdminContentCollectionKey
 } from './content-collections';
 
 export type AdminContentScopeKey = 'all' | AdminContentCollectionKey;
 
-export const ADMIN_CONTENT_COLLECTIONS = ADMIN_CONTENT_COLLECTION_KEYS;
+export const ADMIN_CONTENT_COLLECTIONS = ADMIN_CONTENT_COLLECTION_KEYS.filter((collection) =>
+  getAdminContentCollectionCapability(collection).visible
+) as readonly AdminContentCollectionKey[];
 
 export const ADMIN_CONTENT_SCOPE_OPTIONS = [
   { value: 'all', label: '全部内容' },
-  { value: 'essay', label: '随笔' },
-  { value: 'bits', label: '絮语' },
-  { value: 'memo', label: '小记' }
+  ...ADMIN_CONTENT_COLLECTIONS.map((collection) => ({
+    value: collection,
+    label: getAdminContentCollectionCapability(collection).label
+  }))
 ] as const satisfies readonly { value: AdminContentScopeKey; label: string }[];
 
 export const ADMIN_CONTENT_OVERVIEW_SECTION_LIMIT = 8;

@@ -23,23 +23,33 @@ import {
   splitMarkdownFrontmatter
 } from './frontmatter';
 import { findMissingMarkdownBodyLocalImageReferences } from './essay-image-references';
-import type {
-  AdminContentCollectionKey
+import {
+  getAdminContentCollectionCapability,
+  getAdminContentFixedPageCapability,
+  type AdminContentCollectionKey,
+  type AdminContentWriteCollectionKey
 } from './content-collections';
 
 export {
   ADMIN_CONTENT_COLLECTION_KEYS,
   ADMIN_CONTENT_BODY_IMAGE_UPLOAD_COLLECTION_KEYS,
+  ADMIN_CONTENT_DELETABLE_COLLECTION_KEYS,
+  ADMIN_CONTENT_EXPORTABLE_COLLECTION_KEYS,
   ADMIN_CONTENT_IMAGE_UPLOAD_COLLECTION_KEYS,
   ADMIN_CONTENT_WRITE_COLLECTION_KEYS,
+  getAdminContentCollectionCapability,
+  getAdminContentFixedPageCapability,
   isAdminContentBodyImageUploadCollectionKey,
   isAdminContentCollectionKey,
+  isAdminContentDeletableCollectionKey,
+  isAdminContentExportableCollectionKey,
   isAdminContentImageUploadCollectionKey,
   isAdminContentWriteCollectionKey
 } from './content-collections';
 export type {
   AdminContentBodyImageUploadCollectionKey,
   AdminContentCollectionKey,
+  AdminContentExportableCollectionKey,
   AdminContentImageUploadCollectionKey,
   AdminContentWriteCollectionKey
 } from './content-collections';
@@ -234,7 +244,6 @@ const hashSourceText = (sourceText: string): string =>
 
 const FRONTMATTER_READ_CHUNK_SIZE = 4096;
 const FRONTMATTER_OPENING_MARKERS = ['---\n', '---\r\n'] as const;
-const MEMO_FIXED_ENTRY_ID = 'index';
 
 const trimFrontmatterLineEnding = (value: string): string =>
   value.endsWith('\r') ? value.slice(0, -1) : value;
@@ -337,18 +346,19 @@ export const resolveAdminContentEntrySourcePath = (
   entryId: string
 ): string => {
   const normalizedEntryId = normalizeEntryId(entryId);
-  if (collection === 'memo') {
-    if (normalizedEntryId !== MEMO_FIXED_ENTRY_ID) {
+  const fixedPage = getAdminContentFixedPageCapability(collection);
+  if (fixedPage) {
+    if (normalizedEntryId !== fixedPage.entryId) {
       throw new AdminContentEntryResolutionError(
         'invalid-entry-id',
-        'memo 仅支持固定源文件：src/content/memo/index.md'
+        `${collection} 仅支持固定源文件：${fixedPage.sourcePath}`
       );
     }
-    const memoSourcePath = path.join(getContentRoot(), collection, 'index.md');
-    if (existsSync(memoSourcePath)) return memoSourcePath;
+    const fixedSourcePath = toAdminContentAbsoluteProjectPath(fixedPage.sourcePath);
+    if (existsSync(fixedSourcePath)) return fixedSourcePath;
     throw new AdminContentEntryResolutionError(
       'source-not-found',
-      'memo 固定源文件不存在：src/content/memo/index.md'
+      `${collection} 固定源文件不存在：${fixedPage.sourcePath}`
     );
   }
 
@@ -372,7 +382,7 @@ export const resolveAdminContentEntryLegacySourcePath = (
   entryId: string
 ): string => {
   const normalizedEntryId = normalizeEntryId(entryId);
-  if (collection === 'memo') {
+  if (getAdminContentFixedPageCapability(collection)) {
     return resolveAdminContentEntrySourcePath(collection, normalizedEntryId);
   }
 
@@ -558,15 +568,16 @@ export const listAdminCollectionSourceFiles = async (
   const root = getCollectionRoot(collection);
   if (!existsSync(root)) return [];
 
-  if (collection === 'memo') {
-    const candidates = [path.join(root, 'index.md')];
+  const fixedPage = getAdminContentFixedPageCapability(collection);
+  if (fixedPage) {
+    const candidates = [toAdminContentAbsoluteProjectPath(fixedPage.sourcePath)];
     const files: string[] = [];
     for (const filePath of candidates) {
       try {
         await access(filePath);
         files.push(filePath);
       } catch {
-        // memo 是固定页面源；不存在候选文件时保持空 manifest。
+        // 固定页面源不存在时保持空 manifest。
       }
     }
     return files;
@@ -743,13 +754,20 @@ const toMemoEditorValues = (state: AdminContentSourceState): AdminMemoEditorValu
   };
 };
 
-export const getAdminContentReadOnlyReason = (_collection: AdminContentCollectionKey): string | null =>
-  null;
+export const getAdminContentReadOnlyReason = (collection: AdminContentCollectionKey): string | null =>
+  getAdminContentCollectionCapability(collection).readonlyReason;
 
 export const readAdminContentEntryEditorPayload = async (
-  collection: AdminContentCollectionKey,
+  collection: AdminContentWriteCollectionKey,
   entryId: string
 ): Promise<AdminContentEditorPayload> => {
+  if (!getAdminContentCollectionCapability(collection).writable) {
+    throw new AdminContentEntryResolutionError(
+      'invalid-entry-id',
+      getAdminContentReadOnlyReason(collection) ?? `当前 collection 暂不支持写盘：${collection}`
+    );
+  }
+
   const state = await loadAdminContentSourceState(collection, entryId);
 
   if (collection === 'essay') {
@@ -1278,11 +1296,18 @@ const buildMemoWritePlan = (
 };
 
 export const buildAdminContentWritePlan = async (
-  collection: AdminContentCollectionKey,
+  collection: AdminContentWriteCollectionKey,
   entryId: string,
   frontmatterInput: unknown,
   bodyInput?: string
 ): Promise<AdminWritePlan & { state: AdminContentSourceState }> => {
+  if (!getAdminContentCollectionCapability(collection).writable) {
+    throw new AdminContentEntryResolutionError(
+      'invalid-entry-id',
+      getAdminContentReadOnlyReason(collection) ?? `当前 collection 暂不支持写盘：${collection}`
+    );
+  }
+
   const state = await loadAdminContentSourceState(collection, entryId);
 
   if (collection === 'essay') {

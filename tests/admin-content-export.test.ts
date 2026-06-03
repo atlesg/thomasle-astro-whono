@@ -13,6 +13,7 @@ describe('admin content source export', () => {
     await mkdir(path.join(tempRoot, 'src', 'content', 'essay'), { recursive: true });
     await mkdir(path.join(tempRoot, 'src', 'content', 'bits'), { recursive: true });
     await mkdir(path.join(tempRoot, 'src', 'content', 'memo'), { recursive: true });
+    await mkdir(path.join(tempRoot, 'src', 'content', 'about'), { recursive: true });
 
     await writeFile(
       path.join(tempRoot, 'src', 'content', 'essay', 'demo.md'),
@@ -38,6 +39,11 @@ describe('admin content source export', () => {
     await writeFile(
       path.join(tempRoot, 'src', 'content', 'memo', 'index.md'),
       ['---', 'title: Memo', '---', '', 'memo body', ''].join('\n'),
+      'utf8'
+    );
+    await writeFile(
+      path.join(tempRoot, 'src', 'content', 'about', 'index.md'),
+      ['---', 'friendsTitle: Friends', '---', '', 'about body', ''].join('\n'),
       'utf8'
     );
   });
@@ -76,11 +82,13 @@ describe('admin content source export', () => {
     const bitsDownload = await readAdminContentSourceDownload('bits', 'bits-2026-02-03-2230');
     const nestedEssayDownload = await readAdminContentSourceDownload('essay', 'series/intro');
     const memoDownload = await readAdminContentSourceDownload('memo', 'index');
+    const aboutDownload = await readAdminContentSourceDownload('about', 'index');
 
     expect(bitsDownload.fileName).toBe('bits-2026-02-03-2230.mdx');
     expect(bitsDownload.contentType).toBe('text/plain; charset=utf-8');
     expect(nestedEssayDownload.fileName).toBe('intro.md');
     expect(memoDownload.fileName).toBe('memo.md');
+    expect(aboutDownload.fileName).toBe('about.md');
   });
 
   it('serves the source file as an attachment from the export api', async () => {
@@ -93,6 +101,17 @@ describe('admin content source export', () => {
     expect(response.headers.get('content-type')).toBe('text/markdown; charset=utf-8');
     expect(response.headers.get('content-disposition')).toContain('filename="demo.md"');
     expect(await response.text()).toContain('# Demo');
+  });
+
+  it('exports the readonly about fixed page source', async () => {
+    const { GET } = await import('../src/pages/api/admin/content/export');
+    const url = new URL('http://127.0.0.1:4321/api/admin/content/export/?collection=about&entryId=index');
+
+    const response = await GET({ url } as never);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-disposition')).toContain('filename="about.md"');
+    expect(await response.text()).toContain('about body');
   });
 
   it('encodes non-ascii and special attachment file names for filename*', async () => {

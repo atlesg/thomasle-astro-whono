@@ -38,6 +38,7 @@ const ADMIN_CONTENT_SOURCE_INDEX_EXT_RE = /\.md$/i;
 const MAX_SEARCH_INDEX_TEXT = 600;
 const ESSAY_EXCERPT_LIMIT = 120;
 const BITS_EXCERPT_LIMIT = 180;
+const FIXED_PAGE_DATE_LABEL = '固定单页';
 const UNTITLED_VALUE = '(未设置)';
 const SOURCE_ERROR_DATE_LABEL = '源文件异常';
 
@@ -344,10 +345,44 @@ const createMemoSourceIndexItem: FrontmatterAdapter = (record) => {
   });
 };
 
+const createAboutSourceIndexItem: FrontmatterAdapter = (record) => {
+  const frontmatter = record.frontmatter;
+  const bodyDerived = getBodyDerived(record);
+  const friendsTitle = normalizeOptionalText(frontmatter.friendsTitle);
+  const friendsDescription = normalizeOptionalText(frontmatter.friendsDescription);
+  const contactNote = normalizeOptionalText(frontmatter.contactNote);
+  const sourceError = record.sourceError;
+
+  return createBaseItem(record, {
+    title: '关于',
+    slug: 'about',
+    publicHref: '/about/',
+    isDraft: false,
+    archive: null,
+    date: null,
+    dateLabel: record.sourceError ? SOURCE_ERROR_DATE_LABEL : FIXED_PAGE_DATE_LABEL,
+    year: null,
+    tags: [],
+    searchHaystack: buildSearchHaystack([
+      '关于',
+      record.entryId,
+      record.publicEntryId,
+      'about',
+      friendsTitle,
+      friendsDescription,
+      contactNote,
+      bodyDerived?.text,
+      sourceError
+    ]),
+    sourceError
+  });
+};
+
 const FRONTMATTER_ADAPTERS: Record<AdminContentCollectionKey, FrontmatterAdapter> = {
   essay: createEssaySourceIndexItem,
   bits: createBitsSourceIndexItem,
-  memo: createMemoSourceIndexItem
+  memo: createMemoSourceIndexItem,
+  about: createAboutSourceIndexItem
 };
 
 // Manifest 排序不决定最终列表顺序，仅保证不同系统上的请求快照顺序稳定。

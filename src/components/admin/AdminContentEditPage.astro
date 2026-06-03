@@ -4,9 +4,11 @@ import AdminImagePicker from './AdminImagePicker.astro';
 import AdminReadonlyNotice from './AdminReadonlyNotice.astro';
 import AdminShell from './AdminShell.astro';
 import {
-  getAdminContentEntryListHref,
-  type AdminContentCollectionKey
+  getAdminContentEntryListHref
 } from '../../lib/admin-console/content';
+import type {
+  AdminContentWriteCollectionKey
+} from '../../lib/admin-console/content-shared';
 import {
   ADMIN_CONTENT_DELETE_API_PATH,
   ADMIN_CONTENT_ENTRY_API_PATH,
@@ -27,7 +29,7 @@ import {
 } from './admin-content-edit-dev-state';
 
 type Props = {
-  collection: AdminContentCollectionKey;
+  collection: AdminContentWriteCollectionKey;
   entryId: string;
   initialArticleInfoOpen?: boolean;
 };

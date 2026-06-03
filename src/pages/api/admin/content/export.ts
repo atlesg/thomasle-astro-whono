@@ -3,7 +3,9 @@ import { ADMIN_JSON_HEADERS } from '../../../../lib/admin-console/admin-api';
 import {
   ADMIN_CONTENT_COLLECTION_KEYS,
   AdminContentEntryResolutionError,
-  isAdminContentCollectionKey
+  getAdminContentCollectionCapability,
+  isAdminContentCollectionKey,
+  isAdminContentExportableCollectionKey
 } from '../../../../lib/admin-console/content-shared';
 import {
   createAdminContentSourceDownloadHeaders,
@@ -46,6 +48,13 @@ export const GET: APIRoute = async ({ url }) => {
     return createJsonErrorResponse(
       400,
       [`不支持的 content collection：${collection}；仅支持 ${ADMIN_CONTENT_COLLECTION_KEYS.join(' / ')}`]
+    );
+  }
+
+  if (!isAdminContentExportableCollectionKey(collection)) {
+    return createJsonErrorResponse(
+      400,
+      [getAdminContentCollectionCapability(collection).readonlyReason ?? `当前 collection 暂不支持导出：${collection}`]
     );
   }
 

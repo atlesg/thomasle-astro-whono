@@ -62,7 +62,8 @@ describe('admin-console/content-source-index', () => {
     await Promise.all([
       mkdir(path.join(tempRoot, 'src/content/essay'), { recursive: true }),
       mkdir(path.join(tempRoot, 'src/content/bits'), { recursive: true }),
-      mkdir(path.join(tempRoot, 'src/content/memo'), { recursive: true })
+      mkdir(path.join(tempRoot, 'src/content/memo'), { recursive: true }),
+      mkdir(path.join(tempRoot, 'src/content/about'), { recursive: true })
     ]);
   });
 
@@ -73,7 +74,7 @@ describe('admin-console/content-source-index', () => {
     }
   });
 
-  const writeContent = async (collection: 'essay' | 'bits' | 'memo', entryPath: string, sourceText: string) => {
+  const writeContent = async (collection: 'essay' | 'bits' | 'memo' | 'about', entryPath: string, sourceText: string) => {
     const filePath = path.join(tempRoot, 'src/content', collection, ...entryPath.split('/'));
     await mkdir(path.dirname(filePath), { recursive: true });
     await writeFile(filePath, sourceText, 'utf8');
@@ -91,7 +92,8 @@ describe('admin-console/content-source-index', () => {
     expect(getAdminContentSourceCounts(manifest)).toEqual({
       essay: 2,
       bits: 1,
-      memo: 0
+      memo: 0,
+      about: 0
     });
     expect(manifest.essay.every((filePath) => filePath.endsWith('.md'))).toBe(true);
     expect(manifest.essay.some((filePath) => filePath.endsWith('.mdx'))).toBe(false);
@@ -123,11 +125,17 @@ describe('admin-console/content-source-index', () => {
       date: 2026-05-03
       slug: memo
     `));
+    await writeContent('about', 'index.md', markdown(`
+      friendsTitle: 朋友们
+      friendsDescription: 站点链接
+      contactNote: 欢迎联系
+    `, 'About body text.'));
 
     const manifest = await loadAdminContentSourceManifest();
     const essay = (await loadAdminContentSourceIndex(manifest, 'essay'))[0];
     const bit = (await loadAdminContentSourceIndex(manifest, 'bits'))[0];
     const memo = (await loadAdminContentSourceIndex(manifest, 'memo'))[0];
+    const about = (await loadAdminContentSourceIndex(manifest, 'about'))[0];
 
     expect(essay).toMatchObject({
       collection: 'essay',
@@ -164,6 +172,21 @@ describe('admin-console/content-source-index', () => {
       slug: 'memo',
       sourceError: null
     });
+    expect(about).toMatchObject({
+      collection: 'about',
+      id: 'index',
+      publicHref: '/about/',
+      readonlyReason: expect.stringContaining('尚未接入'),
+      title: '关于',
+      slug: 'about',
+      date: null,
+      dateLabel: '固定单页',
+      year: null,
+      tags: [],
+      sourceError: null
+    });
+    expect(about?.searchHaystack).toContain('朋友们');
+    expect(about?.searchHaystack).toContain('欢迎联系');
   });
 
   it('keeps collection-specific date semantics in source index items', async () => {
@@ -276,21 +299,30 @@ describe('admin-console/content-source-index', () => {
     expect(memo?.searchHaystack).not.toContain(lateMarker);
   });
 
-  it('keeps memo source manifest fixed to index.md', async () => {
+  it('keeps fixed-page source manifests constrained to index.md', async () => {
     await writeContent('memo', 'index.md', markdown('title: Memo'));
     await writeContent('memo', 'index.mdx', markdown('title: MDX Memo'));
     await writeContent('memo', 'extra.md', markdown('title: Extra Memo'));
     await writeContent('memo', 'nested/index.md', markdown('title: Nested Memo'));
     await writeContent('memo', 'index/index.md', markdown('title: Directory Memo'));
+    await writeContent('about', 'index.md', markdown('friendsTitle: About'));
+    await writeContent('about', 'extra.md', markdown('friendsTitle: Extra About'));
+    await writeContent('about', 'nested/index.md', markdown('friendsTitle: Nested About'));
 
     const manifest = await loadAdminContentSourceManifest();
     const memoItems = await loadAdminContentSourceIndex(manifest, 'memo');
+    const aboutItems = await loadAdminContentSourceIndex(manifest, 'about');
 
     expect(getAdminContentSourceCounts(manifest).memo).toBe(1);
+    expect(getAdminContentSourceCounts(manifest).about).toBe(1);
     expect(manifest.memo).toHaveLength(1);
+    expect(manifest.about).toHaveLength(1);
     expect(manifest.memo[0]?.replace(/\\/g, '/')).toContain('/src/content/memo/index.md');
+    expect(manifest.about[0]?.replace(/\\/g, '/')).toContain('/src/content/about/index.md');
     expect(memoItems).toHaveLength(1);
+    expect(aboutItems).toHaveLength(1);
     expect(memoItems[0]?.id).toBe('index');
+    expect(aboutItems[0]?.id).toBe('index');
   });
 
   it('does not require memo frontmatter title in the source index', async () => {

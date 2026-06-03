@@ -1,14 +1,12 @@
 import type {
-  AdminContentCollectionKey
-} from '../../lib/admin-console/content';
+  AdminContentWriteCollectionKey
+} from '../../lib/admin-console/content-shared';
 import {
   readAdminContentEntryEditorPayload,
   type AdminContentEditorPayload
 } from '../../lib/admin-console/content-shared';
 import {
-  createEmptyAdminContentEditorOutlines,
   getAdminContentEditorPageRegistration,
-  loadAdminContentEditorBaseStyleHrefs,
   loadAdminContentEditorOutlines,
   loadAdminContentEditorStyleHrefs,
   type AdminContentEditorOutlines,
@@ -18,7 +16,7 @@ import {
 
 type WithBase = (path: string) => string;
 type ReadEditorPayload = (
-  collection: AdminContentCollectionKey,
+  collection: AdminContentWriteCollectionKey,
   entryId: string
 ) => Promise<AdminContentEditorPayload>;
 type LoadStyleSlot = (slot: AdminContentEditorStyleSlot) => Promise<string>;
@@ -28,7 +26,7 @@ type LoadOutlines = (
 ) => Promise<AdminContentEditorOutlines>;
 
 type LoadAdminContentEditDevStateInput = {
-  collection: AdminContentCollectionKey;
+  collection: AdminContentWriteCollectionKey;
   entryId: string;
   adminShellStylesHref: string;
   withBase: WithBase;
@@ -53,15 +51,6 @@ export const loadAdminContentEditDevState = async ({
   loadOutlines = loadAdminContentEditorOutlines
 }: LoadAdminContentEditDevStateInput): Promise<AdminContentEditDevState> => {
   const payload = await readPayload(collection, entryId);
-
-  if (!payload.writable) {
-    const baseStylesHref = await loadAdminContentEditorBaseStyleHrefs(loadStyleSlot);
-    return {
-      payload,
-      outlines: createEmptyAdminContentEditorOutlines(),
-      stylesHref: [adminShellStylesHref, ...baseStylesHref]
-    };
-  }
 
   const registration = getAdminContentEditorPageRegistration(payload.collection);
   const [editorStylesHref, outlines] = await Promise.all([

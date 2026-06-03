@@ -31,6 +31,7 @@ describe('admin images api', () => {
     await mkdir(path.join(tempRoot, 'src', 'content', 'essay', 'no-assets'), { recursive: true });
     await mkdir(path.join(tempRoot, 'src', 'content', 'bits'), { recursive: true });
     await mkdir(path.join(tempRoot, 'src', 'content', 'memo'), { recursive: true });
+    await mkdir(path.join(tempRoot, 'src', 'content', 'about'), { recursive: true });
     await mkdir(path.join(tempRoot, 'src', 'assets'), { recursive: true });
 
     await writeFile(path.join(tempRoot, 'public', 'favicon.png'), PNG_1X1);
@@ -53,6 +54,10 @@ describe('admin images api', () => {
     await writeFile(
       path.join(tempRoot, 'src', 'content', 'memo', 'index.md'),
       ['---', 'title: Memo 图片上传测试', '---', '', 'memo body'].join('\n')
+    );
+    await writeFile(
+      path.join(tempRoot, 'src', 'content', 'about', 'index.md'),
+      ['---', 'friendsTitle: About 图片上传测试', '---', '', 'about body'].join('\n')
     );
     await writeFile(path.join(tempRoot, 'src', 'content', 'essay', 'guide-assets', 'hero.png'), PNG_1X1);
     await writeFile(path.join(tempRoot, 'src', 'assets', 'hero.png'), PNG_1X1);
@@ -371,6 +376,29 @@ describe('admin images api', () => {
         expect.stringContaining('memo 仅支持固定源文件')
       ])
     );
+  });
+
+  it('rejects about image uploads while the about editor is readonly', async () => {
+    const { POST } = await import('../src/pages/api/admin/images/upload');
+    const formData = new FormData();
+    formData.set('collection', 'about');
+    formData.set('entryId', 'index');
+    formData.set('image', new File([PNG_1X1], 'About Shot.PNG', { type: 'image/png' }));
+
+    const response = await POST({
+      request: createUploadRequest('http://127.0.0.1:4321/api/admin/images/upload', formData),
+      url: new URL('http://127.0.0.1:4321/api/admin/images/upload')
+    } as never);
+
+    expect(response.status).toBe(400);
+    const payload = JSON.parse(await response.text());
+    expect(payload.ok).toBe(false);
+    expect(payload.errors).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('当前仅支持随笔正文图片、小记正文图片或絮语配图上传')
+      ])
+    );
+    await expect(readFile(path.join(tempRoot, 'src', 'content', 'about', 'about-shot.png'))).rejects.toThrow();
   });
 
   it('rejects non-image uploads without writing files', async () => {

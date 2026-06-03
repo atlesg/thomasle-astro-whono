@@ -15,6 +15,10 @@ import type {
   AdminEssayEditorPayload,
   AdminMemoEditorPayload
 } from '../src/lib/admin-console/content-shared';
+import {
+  getAdminContentCollectionCapability,
+  type AdminContentWriteCollectionKey
+} from '../src/lib/admin-console/content-collections';
 
 const endpoints: AdminContentEditorEndpoints = {
   endpoint: '/api/admin/content/entry/',
@@ -124,6 +128,15 @@ describe('admin content editor page registry', () => {
     expect(memo.outlineKind).toBe('none');
     expect(memo.infoTrigger).toBeNull();
     expect(memo.usesImagePicker).toBe(false);
+  });
+
+  it('derives image picker affordance from collection capabilities', () => {
+    const collections: AdminContentWriteCollectionKey[] = ['essay', 'bits', 'memo'];
+
+    for (const collection of collections) {
+      expect(getAdminContentEditorPageRegistration(collection).usesImagePicker)
+        .toBe(getAdminContentCollectionCapability(collection).imagePicker);
+    }
   });
 
   it('keeps style slot loading ordered and injectable', async () => {

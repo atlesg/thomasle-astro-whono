@@ -8,8 +8,10 @@ import {
   ADMIN_CONTENT_SORT_OPTIONS,
   getAdminContentConsolePageData,
   getAdminContentEntryEditHref,
+  getAdminContentFilterHref,
   getAdminContentEntryListHref,
-  getAdminContentPublicFallbackLabel
+  getAdminContentPublicFallbackLabel,
+  getAdminContentCollectionCapability
 } from '../../../lib/admin-console/content';
 import type {
   AdminContentCollectionKey,
@@ -33,11 +35,6 @@ const base = import.meta.env.BASE_URL ?? '/';
 const withBase = createWithBase(base);
 const { default: adminShellStylesHref } = await import('../../../styles/components/admin/shell.css?url');
 const contentHref = '/admin/content/';
-const contentSectionRoutes = {
-  essay: '/essay/',
-  bits: '/bits/',
-  memo: '/memo/'
-} as const;
 
 const loadContentDevState = async () => {
   const [
@@ -92,6 +89,21 @@ const getContentRowDateLabel = (
 ): string =>
   item.collection === 'bits' && item.date ? formatISODate(item.date) : item.dateLabel;
 
+const getContentPublicLinkLabel = (item: Pick<AdminContentIndexItem, 'collection'>): string => {
+  const capability = getAdminContentCollectionCapability(item.collection);
+  if (capability.fixedPage) return `转到${capability.label}`;
+  if (item.collection === 'bits') return '转到絮语';
+  return '转到文章';
+};
+
+const getContentInfoActionLabel = (item: Pick<AdminContentIndexItem, 'collection'>): string => {
+  const capability = getAdminContentCollectionCapability(item.collection);
+  if (!capability.writable) return '查看源信息';
+  if (item.collection === 'essay') return '修改信息';
+  if (capability.fixedPage) return `${capability.label}信息`;
+  return '编辑信息';
+};
+
 const getContentPaginationHref = (page: number): string => {
   // 分页只属于具体 collection scope；总览和全部内容搜索不生成分页链接。
   if (!pageData || pageData.collection === 'all') return resetHref;
@@ -119,23 +131,7 @@ const getContentFilterHref = (updates: {
 }): string => {
   if (!pageData) return resetHref;
 
-  const nextCollection = updates.collection ?? pageData.collection;
-  const params = new URLSearchParams();
-  if (pageData.filterState.query) params.set('q', pageData.filterState.query);
-
-  if (nextCollection !== 'all') {
-    const nextDraft = updates.draft ?? pageData.filterState.draft;
-    const nextSort = updates.sort ?? pageData.filterState.sort;
-    const nextYear = updates.year !== undefined ? updates.year : pageData.filterState.year;
-
-    params.set('collection', nextCollection);
-    if (nextDraft !== 'all') params.set('draft', nextDraft);
-    if (nextSort !== 'recent') params.set('sort', nextSort);
-    if (nextYear !== null && nextYear !== '') params.set('year', String(nextYear));
-  }
-
-  const queryString = params.toString();
-  return withBase(queryString ? `${contentHref}?${queryString}` : contentHref);
+  return withBase(getAdminContentFilterHref(pageData.filterState, updates, contentHref));
 };
 
 const defaultDraftFilterLabel = ADMIN_CONTENT_DRAFT_OPTIONS[0].label;
@@ -152,7 +148,11 @@ const currentSortLabel = pageData ? getSortFilterLabel(pageData.filterState.sort
 const currentYearLabel = pageData?.filterState.year !== null && pageData?.filterState.year !== undefined
   ? String(pageData.filterState.year)
   : '全部年份';
-const shouldEnableScopedFilterMenus = Boolean(pageData && pageData.collection !== 'all');
+const shouldEnableScopedFilterMenus = Boolean(
+  pageData
+  && pageData.collection !== 'all'
+  && getAdminContentCollectionCapability(pageData.collection).articleFilters
+);
 const contentFilterMenuGroupName = 'admin-content-filter-menu';
 
 const getContentEmptyMessage = (sectionLabel: string): string => {
@@ -399,7 +399,7 @@ const getContentEmptyMessage = (sectionLabel: string): string => {
                     <div class="admin-content-module__head">
                       <h3 id={sectionTitleId}>
                         <span>{section.collectionLabel}</span>
-                        <span class="admin-content-module__route">{contentSectionRoutes[section.collection]}</span>
+                        <span class="admin-content-module__route">{getAdminContentCollectionCapability(section.collection).consoleSectionHref}</span>
                       </h3>
                       {
                         pageData.mode === 'overview' && section.filteredCount > section.items.length ? (
@@ -415,14 +415,19 @@ const getContentEmptyMessage = (sectionLabel: string): string => {
                         <ol class="admin-content-list" aria-label={`${section.collectionLabel}内容条目`}>
                           {
                             section.items.map((item, itemIndex) => {
+                              const capability = getAdminContentCollectionCapability(item.collection);
                               const editPath = getAdminContentEntryEditHref(item.collection, item.id);
                               const editHref = withBase(editPath);
-                              const articleInfoHref = item.collection === 'essay'
-                                ? withBase(`${editPath}?panel=info`)
-                                : editHref;
+                              const articleInfoHref = capability.writable
+                                ? item.collection === 'essay'
+                                  ? withBase(`${editPath}?panel=info`)
+                                  : editHref
+                                : null;
+                              const entryTitleHref = capability.writable ? editHref : getCollectionListHref(item.collection);
                               const publicHref = item.publicHref ? withBase(item.publicHref) : null;
                               const publicFallbackLabel = getAdminContentPublicFallbackLabel(item);
                               const exportHref = getContentEntryExportHref(item.collection, item.id);
+                              const deleteUnsupportedReason = capability.deleteUnsupportedReason ?? `当前 collection 暂不支持删除：${item.collection}`;
                               const sourceErrorPanelId = item.sourceError
                                 ? `admin-content-source-error-${section.collection}-${itemIndex}`
                                 : null;
@@ -437,7 +442,7 @@ const getContentEmptyMessage = (sectionLabel: string): string => {
                                   </p>
 
                                   <div class="admin-content-item__title-row">
-                                    <a class="admin-content-row-title" href={editHref} data-admin-content-row-title>{item.title}</a>
+                                    <a class="admin-content-row-title" href={entryTitleHref} data-admin-content-row-title>{item.title}</a>
                                     {
                                       item.sourceError && sourceErrorPanelId ? (
                                         <details class="admin-content-source-error">
@@ -477,20 +482,36 @@ const getContentEmptyMessage = (sectionLabel: string): string => {
                                   </div>
 
                                   <div class="admin-content-item__actions">
-                                    <a class="admin-btn admin-btn--secondary admin-btn--compact" href={editHref}>
-                                      编辑
-                                    </a>
+                                    {capability.writable ? (
+                                      <a class="admin-btn admin-btn--secondary admin-btn--compact" href={editHref}>
+                                        编辑
+                                      </a>
+                                    ) : (
+                                      <span
+                                        class="admin-btn admin-btn--secondary admin-btn--compact is-disabled"
+                                        aria-disabled="true"
+                                        title={capability.readonlyReason ?? '当前内容暂不支持编辑'}
+                                      >
+                                        待接入
+                                      </span>
+                                    )}
                                     <details class="admin-content-item__more">
                                       <summary class="admin-btn admin-btn--ghost admin-btn--compact">更多</summary>
                                       <div class="admin-content-more-panel" aria-label="内容操作">
                                         <a
-                                          class="admin-content-menu-item"
-                                          href={articleInfoHref}
+                                          class:list={[
+                                            'admin-content-menu-item',
+                                            !articleInfoHref && 'is-disabled'
+                                          ]}
+                                          href={articleInfoHref ?? undefined}
                                           data-admin-content-info-action={item.collection === 'essay' ? true : undefined}
                                           data-entry-id={item.collection === 'essay' ? item.id : undefined}
+                                          aria-disabled={articleInfoHref ? undefined : 'true'}
+                                          title={articleInfoHref ? undefined : capability.readonlyReason ?? '当前内容暂不支持编辑'}
+                                          tabindex={articleInfoHref ? undefined : '-1'}
                                         >
                                           <AdminIcon name="admin-page" size={14} />
-                                          <span>{item.collection === 'memo' ? '小记信息' : item.collection === 'essay' ? '修改信息' : '编辑信息'}</span>
+                                          <span>{getContentInfoActionLabel(item)}</span>
                                         </a>
                                         <a
                                           class:list={[
@@ -504,7 +525,7 @@ const getContentEmptyMessage = (sectionLabel: string): string => {
                                           tabindex={publicHref ? undefined : '-1'}
                                         >
                                           <AdminIcon name="link" size={14} />
-                                          <span>{item.collection === 'memo' ? '转到小记' : item.collection === 'bits' ? '转到絮语' : '转到文章'}</span>
+                                          <span>{getContentPublicLinkLabel(item)}</span>
                                         </a>
                                         <a
                                           class="admin-content-menu-item"
@@ -527,7 +548,7 @@ const getContentEmptyMessage = (sectionLabel: string): string => {
                                             <span>删除</span>
                                           </button>
                                         ) : (
-                                          <span class="admin-content-menu-item admin-content-menu-item--danger is-disabled" aria-disabled="true" title="memo 是固定单页内容，不支持删除">
+                                          <span class="admin-content-menu-item admin-content-menu-item--danger is-disabled" aria-disabled="true" title={deleteUnsupportedReason}>
                                             <AdminIcon name="trash" size={14} />
                                             <span>删除</span>
                                           </span>

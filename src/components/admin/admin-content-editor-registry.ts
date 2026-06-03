@@ -1,4 +1,5 @@
-import type { AdminContentCollectionKey } from '../../lib/admin-console/content-collections';
+import type { AdminContentWriteCollectionKey } from '../../lib/admin-console/content-collections';
+import { getAdminContentCollectionCapability } from '../../lib/admin-console/content-collections';
 import { getAdminContentEntryEditHref } from '../../lib/admin-console/content-routes';
 import {
   type AdminBitsEditorPayload,
@@ -81,7 +82,7 @@ type BuildIslandPropsInput<Payload extends AdminContentEditorPayload> =
       : BuildMemoIslandPropsInput;
 
 export type AdminContentEditorPageRegistration<
-  Collection extends AdminContentCollectionKey = AdminContentCollectionKey,
+  Collection extends AdminContentWriteCollectionKey = AdminContentWriteCollectionKey,
   Payload extends AdminContentEditorPayload = AdminContentEditorPayload
 > = {
   collection: Collection;
@@ -100,7 +101,7 @@ export type AdminContentEditorPageRegistration<
 };
 
 export type AdminContentEditorOutlineRegistration = {
-  collection: AdminContentCollectionKey;
+  collection: AdminContentWriteCollectionKey;
   outlineKind: AdminContentEditorOutlineKind;
 };
 
@@ -266,7 +267,7 @@ const CONTENT_EDITOR_PAGE_REGISTRY = {
       label: '修改信息',
       panelId: 'admin-editor-frontmatter-panel'
     },
-    usesImagePicker: false,
+    usesImagePicker: getAdminContentCollectionCapability('essay').imagePicker,
     resolveReturnHref: ({ withBase }) => withBase('/admin/content/'),
     buildIslandProps: buildEssayEditorIslandProps
   },
@@ -282,7 +283,7 @@ const CONTENT_EDITOR_PAGE_REGISTRY = {
       label: '修改信息',
       panelId: 'admin-editor-frontmatter-panel'
     },
-    usesImagePicker: true,
+    usesImagePicker: getAdminContentCollectionCapability('bits').imagePicker,
     resolveReturnHref: ({ collectionHref }) => collectionHref,
     buildIslandProps: buildBitsEditorIslandProps
   },
@@ -294,24 +295,24 @@ const CONTENT_EDITOR_PAGE_REGISTRY = {
     styleSlots: ['article', 'memo', 'adminContentEditor'],
     outlineKind: 'none',
     infoTrigger: null,
-    usesImagePicker: false,
+    usesImagePicker: getAdminContentCollectionCapability('memo').imagePicker,
     resolveReturnHref: ({ collectionHref }) => collectionHref,
     buildIslandProps: buildMemoEditorIslandProps
   }
 } as const satisfies {
-  [Collection in AdminContentCollectionKey]: AdminContentEditorPageRegistration<
+  [Collection in AdminContentWriteCollectionKey]: AdminContentEditorPageRegistration<
     Collection,
     Extract<AdminContentEditorPayload, { collection: Collection }>
   >;
 };
 
-export const getAdminContentEditorPageRegistration = <Collection extends AdminContentCollectionKey>(
+export const getAdminContentEditorPageRegistration = <Collection extends AdminContentWriteCollectionKey>(
   collection: Collection
 ): (typeof CONTENT_EDITOR_PAGE_REGISTRY)[Collection] =>
   CONTENT_EDITOR_PAGE_REGISTRY[collection];
 
 export const getAdminContentEditorStyleSlots = (
-  collection: AdminContentCollectionKey
+  collection: AdminContentWriteCollectionKey
 ): readonly AdminContentEditorStyleSlot[] =>
   getAdminContentEditorPageRegistration(collection).styleSlots;
 

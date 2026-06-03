@@ -7,16 +7,18 @@ import {
 import {
   ADMIN_CONTENT_COLLECTION_KEYS,
   AdminContentEntryResolutionError,
+  getAdminContentReadOnlyReason,
   isAdminContentCollectionKey,
-  type AdminContentCollectionKey,
+  isAdminContentWriteCollectionKey,
   type AdminContentValidationIssue
 } from '../../../../lib/admin-console/content-shared';
+import type { AdminContentWriteCollectionKey } from '../../../../lib/admin-console/content-shared';
 import {
   renderAdminMarkdownPreview
 } from '../../../../lib/admin-console/preview';
 
 type PreviewInput = {
-  collection?: AdminContentCollectionKey;
+  collection?: AdminContentWriteCollectionKey;
   entryId?: string;
   source?: string;
   errors: string[];
@@ -69,7 +71,7 @@ const extractPreviewInput = (body: unknown): PreviewInput => {
   const errors: string[] = [];
   const issues: AdminContentValidationIssue[] = [];
   const rawCollection = typeof body.collection === 'string' ? body.collection.trim() : '';
-  let collection: AdminContentCollectionKey | undefined;
+  let collection: AdminContentWriteCollectionKey | undefined;
   let entryId: string | undefined;
   let source: string | undefined;
 
@@ -79,6 +81,10 @@ const extractPreviewInput = (body: unknown): PreviewInput => {
     issues.push({ path: 'collection', message });
   } else if (!isAdminContentCollectionKey(rawCollection)) {
     const message = `不支持的 content collection：${rawCollection}；仅支持 ${ADMIN_CONTENT_COLLECTION_KEYS.join(' / ')}`;
+    errors.push(message);
+    issues.push({ path: 'collection', message });
+  } else if (!isAdminContentWriteCollectionKey(rawCollection)) {
+    const message = getAdminContentReadOnlyReason(rawCollection) ?? `当前 collection 暂不支持预览：${rawCollection}`;
     errors.push(message);
     issues.push({ path: 'collection', message });
   } else {

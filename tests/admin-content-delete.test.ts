@@ -26,6 +26,7 @@ describe('admin content delete api', () => {
     await mkdir(path.join(tempRoot, 'src', 'content', 'essay'), { recursive: true });
     await mkdir(path.join(tempRoot, 'src', 'content', 'bits'), { recursive: true });
     await mkdir(path.join(tempRoot, 'src', 'content', 'memo'), { recursive: true });
+    await mkdir(path.join(tempRoot, 'src', 'content', 'about'), { recursive: true });
     await mkdir(path.join(tempRoot, 'src', 'content', 'essay', 'series', 'intro'), { recursive: true });
 
     await writeFile(
@@ -51,6 +52,11 @@ describe('admin content delete api', () => {
     await writeFile(
       path.join(tempRoot, 'src', 'content', 'memo', 'index.md'),
       ['---', 'title: Memo', '---', '', 'memo body', ''].join('\n'),
+      'utf8'
+    );
+    await writeFile(
+      path.join(tempRoot, 'src', 'content', 'about', 'index.md'),
+      ['---', 'friendsTitle: Friends', '---', '', 'about body', ''].join('\n'),
       'utf8'
     );
   });
@@ -153,6 +159,27 @@ describe('admin content delete api', () => {
     expect(payload.ok).toBe(false);
     expect(payload.errors[0]).toContain('memo 是固定单页内容');
     await expect(readFile(path.join(tempRoot, 'src', 'content', 'memo', 'index.md'), 'utf8')).resolves.toContain('memo body');
+  });
+
+  it('rejects about delete requests because about is a fixed readonly page', async () => {
+    const { POST } = await import('../src/pages/api/admin/content/delete');
+    const url = 'http://127.0.0.1:4321/api/admin/content/delete/';
+
+    const response = await POST({
+      request: createJsonRequest(url, {
+        collection: 'about',
+        entryId: 'index',
+        revision: 'stale',
+        expectedRelativePath: 'src/content/about/index.md'
+      }),
+      url: new URL(url)
+    } as never);
+
+    expect(response.status).toBe(400);
+    const payload = JSON.parse(await response.text());
+    expect(payload.ok).toBe(false);
+    expect(payload.errors[0]).toContain('about 是固定单页内容');
+    await expect(readFile(path.join(tempRoot, 'src', 'content', 'about', 'index.md'), 'utf8')).resolves.toContain('about body');
   });
 
   it('rejects stale revisions and leaves the source file in place', async () => {

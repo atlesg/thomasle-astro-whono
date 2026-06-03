@@ -19,6 +19,7 @@ import {
 import { getBitAnchorId } from '../bits-public-routing';
 import { getTagKeys, isRoutableTagKey, toTagKey } from '../tags';
 import { tokenizeSearchQuery } from '../../utils/format';
+import { getAdminContentCollectionCapability } from './content-collections';
 
 export type AdminContentDraftFilter = 'all' | 'draft' | 'published';
 export type AdminContentSortKey = 'recent' | 'title';
@@ -60,6 +61,13 @@ export type AdminContentFilterState = {
   page: number;
 };
 
+export type AdminContentFilterHrefUpdates = {
+  collection?: AdminContentScopeKey;
+  draft?: AdminContentDraftFilter;
+  sort?: AdminContentSortKey;
+  year?: string | number | null;
+};
+
 export type AdminContentPagination = {
   page: number;
   pageSize: number;
@@ -93,6 +101,9 @@ export {
   isAdminContentCollectionKey,
   isAdminContentScopeKey
 } from './content-routes';
+export {
+  getAdminContentCollectionCapability
+} from './content-collections';
 export type {
   AdminContentCollectionKey,
   AdminContentScopeKey
@@ -109,15 +120,15 @@ export const ADMIN_CONTENT_DRAFT_OPTIONS = [
   { value: 'draft', label: '仅草稿' }
 ] as const satisfies readonly { value: AdminContentDraftFilter; label: string }[];
 
-const COLLECTION_LABELS: Record<AdminContentCollectionKey, string> = {
-  essay: '随笔',
-  bits: '絮语',
-  memo: '小记'
-};
-
 const COLLECTION_ORDER = new Map<AdminContentCollectionKey, number>(
   ADMIN_CONTENT_COLLECTIONS.map((collection, index) => [collection, index])
 );
+
+const getCollectionLabel = (collection: AdminContentCollectionKey): string =>
+  getAdminContentCollectionCapability(collection).label;
+
+const shouldUseArticleFilters = (collection: AdminContentScopeKey): boolean =>
+  collection !== 'all' && getAdminContentCollectionCapability(collection).articleFilters;
 
 const isAdminContentDraftFilter = (value: string): value is AdminContentDraftFilter =>
   ADMIN_CONTENT_DRAFT_OPTIONS.some((option) => option.value === value);
@@ -188,7 +199,7 @@ type LoadContentIndexItemsOptions = {
 
 const withCollectionLabel = (item: AdminContentSourceIndexItem): AdminContentIndexItem => ({
   ...item,
-  collectionLabel: COLLECTION_LABELS[item.collection]
+  collectionLabel: getCollectionLabel(item.collection)
 });
 
 const loadCollectionItems = async (
@@ -214,7 +225,7 @@ const loadContentIndexItems = async (
 };
 
 const getAdminContentScopeLabel = (collection: AdminContentScopeKey): string =>
-  collection === 'all' ? '全部内容' : COLLECTION_LABELS[collection];
+  collection === 'all' ? '全部内容' : getCollectionLabel(collection);
 
 const getAdminContentVisibleCollections = (collection: AdminContentScopeKey): readonly AdminContentCollectionKey[] =>
   collection === 'all' ? ADMIN_CONTENT_COLLECTIONS : [collection];
@@ -266,6 +277,20 @@ export const getAdminContentFilterState = (searchParams: URLSearchParams): Admin
     };
   }
 
+  if (!shouldUseArticleFilters(collection)) {
+    return {
+      collection,
+      query,
+      queryTokens: tokenizeSearchQuery(query),
+      draft: 'all',
+      tag: '',
+      year: null,
+      sort: 'recent',
+      entryId: '',
+      page: 1
+    };
+  }
+
   const draftValue = normalizeOptionalText(searchParams.get('draft'));
   const sortValue = normalizeOptionalText(searchParams.get('sort'));
   const year = normalizePositiveInteger(searchParams.get('year'));
@@ -296,10 +321,11 @@ export const filterAdminContentItems = (
 
   const filteredItems = items.filter((item) => {
     if (filterState.collection !== 'all' && item.collection !== filterState.collection) return false;
-    if (filterState.draft === 'draft' && !item.isDraft) return false;
-    if (filterState.draft === 'published' && item.isDraft) return false;
-    if (tagKey && !getTagKeys(item.tags).includes(tagKey)) return false;
-    if (filterState.year !== null && item.year !== filterState.year) return false;
+    const articleFilters = getAdminContentCollectionCapability(item.collection).articleFilters;
+    if (articleFilters && filterState.draft === 'draft' && !item.isDraft) return false;
+    if (articleFilters && filterState.draft === 'published' && item.isDraft) return false;
+    if (articleFilters && tagKey && !getTagKeys(item.tags).includes(tagKey)) return false;
+    if (articleFilters && filterState.year !== null && item.year !== filterState.year) return false;
     if (queryTokens.length > 0 && !queryTokens.every((token) => item.searchHaystack.includes(token))) return false;
     return true;
   });
@@ -313,6 +339,33 @@ export const filterAdminContentItems = (
   }
 
   return orderAdminContentItemsByRecent(filteredItems);
+};
+
+export const getAdminContentFilterHref = (
+  filterState: Pick<AdminContentFilterState, 'collection' | 'query' | 'draft' | 'sort' | 'year'>,
+  updates: AdminContentFilterHrefUpdates = {},
+  contentHref = '/admin/content/'
+): string => {
+  const nextCollection = updates.collection ?? filterState.collection;
+  const params = new URLSearchParams();
+  if (filterState.query) params.set('q', filterState.query);
+
+  if (nextCollection !== 'all') {
+    const nextCapability = getAdminContentCollectionCapability(nextCollection);
+    const nextDraft = updates.draft ?? filterState.draft;
+    const nextSort = updates.sort ?? filterState.sort;
+    const nextYear = updates.year !== undefined ? updates.year : filterState.year;
+
+    params.set('collection', nextCollection);
+    if (nextCapability.articleFilters) {
+      if (nextDraft !== 'all') params.set('draft', nextDraft);
+      if (nextSort !== 'recent') params.set('sort', nextSort);
+      if (nextYear !== null && nextYear !== '') params.set('year', String(nextYear));
+    }
+  }
+
+  const queryString = params.toString();
+  return queryString ? `${contentHref}?${queryString}` : contentHref;
 };
 
 const buildAdminContentCollectionSections = (
@@ -334,7 +387,7 @@ const buildAdminContentCollectionSections = (
 
     return {
       collection: sectionCollection,
-      collectionLabel: COLLECTION_LABELS[sectionCollection],
+      collectionLabel: getCollectionLabel(sectionCollection),
       totalCount,
       filteredCount: sectionItems.length,
       items: visibleItems
@@ -380,13 +433,18 @@ export const getAdminContentConsolePageData = async (
   const mode = getAdminContentConsoleMode(filterState);
   const visibleCollections = getAdminContentVisibleCollections(filterState.collection);
   // 正文派生文本成本较高，只在单 collection 搜索时加载；全部内容搜索仅匹配元信息。
-  const includeSearchText = mode === 'collection' && filterState.queryTokens.length > 0;
+  const includeSearchText = mode === 'collection'
+    && filterState.queryTokens.length > 0
+    && filterState.collection !== 'all'
+    && getAdminContentCollectionCapability(filterState.collection).bodySearch;
   const manifest = await loadAdminContentSourceManifest();
   const collectionCounts = getAdminContentSourceCounts(manifest);
   const items = await loadContentIndexItems(manifest, visibleCollections, { includeSearchText });
   const filteredItems = filterAdminContentItems(items, filterState);
   // 分页在数据层完成，页面模板只渲染已经截断后的 sections，避免再出现视图层 slice。
-  const pageWindow = mode === 'collection'
+  const shouldPaginate = filterState.collection !== 'all'
+    && getAdminContentCollectionCapability(filterState.collection).pagination;
+  const pageWindow = mode === 'collection' && shouldPaginate
     ? buildAdminContentPagination(filteredItems.length, filterState.page, ADMIN_CONTENT_COLLECTION_PAGE_SIZE)
     : null;
   const sections = buildAdminContentCollectionSections(
@@ -429,6 +487,10 @@ export const getAdminContentPublicFallbackLabel = (item: AdminContentIndexItem):
 
   if (item.collection === 'memo') {
     return 'memo 当前使用固定公开路由 /memo/';
+  }
+
+  if (item.collection === 'about') {
+    return 'about 当前使用固定公开路由 /about/';
   }
 
   if (item.collection === 'bits') {
