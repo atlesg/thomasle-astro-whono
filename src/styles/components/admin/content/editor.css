@@ -4,7 +4,7 @@
 
 @import "./editor/base.css";
 @import "./editor/page.css";
-@import "./editor/legacy-form.css";
+@import "./editor/shared-form.css";
 @import "./editor/bits-workspace.css";
 @import "./editor/memo-workspace.css";
 @import "./editor/about-workspace.css";

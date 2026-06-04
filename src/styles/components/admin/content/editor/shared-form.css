@@ -1,5 +1,5 @@
-/* Admin Content Editor Legacy Form
-   承载非 Svelte 编辑表单、只读详情和写入预览；不承载 essay Svelte toolbar、workspace 或 bits 图片行。
+/* Admin Content Editor Legacy / Shared Form Surfaces
+   保留非 Svelte 编辑表单、只读详情、写入预览，以及当前 workspace 仍复用的错误文本与 reset 外壳。
 */
 
 .admin-content-editor,
