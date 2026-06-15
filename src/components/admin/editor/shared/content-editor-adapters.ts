@@ -11,6 +11,7 @@ import {
   getAdminAboutWriteFieldLabel,
   isAdminAboutFrontmatterIssuePath
 } from '../../../../lib/admin-console/content-about-contract';
+import { hasOwn } from '../../../../lib/admin-console/content-entry-utils';
 
 type ContentEditorCapabilities = {
   body: boolean;
@@ -76,11 +77,20 @@ export const isEssayEditorValues = (value: AdminContentWorkspaceEditorValues | n
 export const isBitsEditorValues = (value: AdminContentWorkspaceEditorValues | null): value is AdminBitsEditorValues =>
   Boolean(value && 'authorName' in value && 'authorAvatar' in value && 'imagesText' in value);
 
+// 编辑器值是扁平字段袋（仅字符串/布尔基本类型），按 own 键名与值逐项比较即可，不依赖键顺序。
 const isEqualContentEditorValues = <Values extends AdminContentWorkspaceEditorValues>(
   left: Values | null,
   right: Values | null
-): boolean =>
-  JSON.stringify(left) === JSON.stringify(right);
+): boolean => {
+  if (left === right) return true;
+  if (!left || !right) return false;
+
+  const leftRecord = left as Record<string, unknown>;
+  const rightRecord = right as Record<string, unknown>;
+  const keys = Object.keys(leftRecord);
+  return keys.length === Object.keys(rightRecord).length
+    && keys.every((key) => hasOwn(rightRecord, key) && leftRecord[key] === rightRecord[key]);
+};
 
 const getContentWriteFieldLabel = (
   field: string,

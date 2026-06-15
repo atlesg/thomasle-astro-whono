@@ -11,15 +11,17 @@ const renderAboutMarkdown = async (
   source: string,
   {
     base = '/',
-    path = new URL('../src/content/about/index.md', import.meta.url)
-  }: { base?: string; path?: URL | string } = {}
+    path = new URL('../src/content/about/index.md', import.meta.url),
+    enabled
+  }: { base?: string; path?: URL | string; enabled?: boolean } = {}
 ): Promise<string> => {
+  const options = enabled === undefined ? undefined : { enabled };
   const processor = unified()
     .use(remarkParse)
     .use(remarkDirective)
-    .use(remarkAboutDirectives)
+    .use(remarkAboutDirectives, options)
     .use(remarkRehype)
-    .use(rehypeAboutDirectives, { base })
+    .use(rehypeAboutDirectives, { base, ...(options ?? {}) })
     .use(rehypeStringify);
 
   const file = new VFile({ value: source, path });
@@ -123,6 +125,24 @@ describe('about directives markdown transform', () => {
         '::contact-links'
       ].join('\n'),
       { path: new URL('../src/content/essay/demo.md', import.meta.url) }
+    );
+
+    expect(html).not.toContain('qa-list');
+    expect(html).not.toContain('qa-item');
+    expect(html).not.toContain('data-about-contact-links');
+    expect(html).toContain('A1');
+  });
+
+  it('honors explicit disabled options even for the about source file', async () => {
+    const html = await renderAboutMarkdown(
+      [
+        ':::faq{question="Q1"}',
+        'A1',
+        ':::',
+        '',
+        '::contact-links'
+      ].join('\n'),
+      { enabled: false }
     );
 
     expect(html).not.toContain('qa-list');

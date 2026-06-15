@@ -91,6 +91,31 @@ describe('admin preview api', () => {
     expect(result.html).not.toContain('language-math');
   });
 
+  it('keeps markdown math protected while raw html and code highlighting are processed', async () => {
+    const { renderAdminMarkdownPreview } = await import('../src/lib/admin-console/preview');
+
+    const result = await renderAdminMarkdownPreview({
+      collection: 'essay',
+      source: [
+        'Inline math $$x + y$$.',
+        '',
+        '<span class="math-inline">raw + html</span>',
+        '<script>alert("x")</script>',
+        '',
+        '```ts',
+        'const value = 1;',
+        '```'
+      ].join('\n')
+    });
+
+    expect(result.html).toContain('class="katex"');
+    expect(result.html).toContain('raw + html');
+    expect(result.html).not.toContain('math-inline');
+    expect(result.html).not.toContain('<script>');
+    expect(result.html).toContain('class="code-block"');
+    expect(result.html).toContain('<code class="language-ts">');
+  });
+
   it('renders double-dollar math as KaTeX without Shiki code wrappers', async () => {
     const { renderAdminMarkdownPreview } = await import('../src/lib/admin-console/preview');
 
@@ -131,6 +156,20 @@ describe('admin preview api', () => {
     expect(result.html).toContain('<del>删除线</del>');
     expect(result.html).toContain('<input type="checkbox" checked disabled>');
     expect(result.html).toContain('<input type="checkbox" disabled>');
+  });
+
+  it('applies Astro-compatible default smartypants typography in preview', async () => {
+    const { renderAdminMarkdownPreview } = await import('../src/lib/admin-console/preview');
+
+    const result = await renderAdminMarkdownPreview({
+      collection: 'essay',
+      source: 'He said "Hello" -- ok.'
+    });
+
+    expect(result.html).toContain('“Hello”');
+    expect(result.html).toContain('— ok.');
+    expect(result.html).not.toContain('"Hello"');
+    expect(result.html).not.toContain('-- ok.');
   });
 
   it('annotates markdown H2 and H3 preview nodes with source outline keys', async () => {

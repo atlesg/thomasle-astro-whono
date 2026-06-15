@@ -4,29 +4,22 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import rehypeShiki from '@shikijs/rehype';
 import type { RehypeShikiOptions } from '@shikijs/rehype';
-import rehypeRaw from 'rehype-raw';
-import rehypeSanitize from 'rehype-sanitize';
-import type { Options as RehypeSanitizeOptions } from 'rehype-sanitize';
-import rehypeKatex from 'rehype-katex';
 import rehypeStringify from 'rehype-stringify';
-import remarkDirective from 'remark-directive';
 import remarkGfm from 'remark-gfm';
-import remarkMath from 'remark-math';
 import remarkParse from 'remark-parse';
 import remarkRehype from 'remark-rehype';
+import remarkSmartypants from 'remark-smartypants';
 import { unified } from 'unified';
 import type { Plugin } from 'unified';
 import { visit } from 'unist-util-visit';
 import type { Element, Root } from 'hast';
 import {
-  markdownMathRawOptions,
-  rehypeProtectMarkdownMath,
-  rehypeRestoreMarkdownMathBoundary
-} from '../../plugins/rehype-markdown-math-boundary.mjs';
-import { rehypeAboutDirectives, remarkAboutDirectives } from '../../plugins/about-directives.mjs';
-import remarkCallout from '../../plugins/remark-callout.mjs';
-import { sanitizeSchema } from '../../plugins/sanitize-schema.mjs';
-import shikiToolbar from '../../plugins/shiki-toolbar.mjs';
+  createMarkdownShikiTransformers,
+  createProjectMarkdownRehypePlugins,
+  createProjectMarkdownRemarkPlugins,
+  markdownShikiThemes,
+  markdownSmartypantsOptions
+} from '../../plugins/markdown-pipeline.mjs';
 import { replaceAboutContactLinksPlaceholderHtml } from '../about-contact-links';
 import { getThemeSettings } from '../theme-settings';
 import {
@@ -81,12 +74,9 @@ const PREVIEW_SHIKI_LANGUAGES: NonNullable<RehypeShikiOptions['langs']> = [
 ];
 
 const previewShikiOptions: RehypeShikiOptions = {
-  themes: {
-    light: 'github-light',
-    dark: 'github-dark'
-  },
+  themes: { ...markdownShikiThemes },
   langs: PREVIEW_SHIKI_LANGUAGES,
-  transformers: [shikiToolbar()],
+  transformers: createMarkdownShikiTransformers(),
   addLanguageClass: true,
   fallbackLanguage: 'text',
   cache: previewCodeHighlightCache
@@ -177,35 +167,51 @@ const createPreviewOutlineAnchorPlugin = (source: string): Plugin<[], Root> => {
   };
 };
 
+const useProcessorPlugin = (processor: any, pluginEntry: any) => {
+  if (Array.isArray(pluginEntry)) {
+    processor.use(pluginEntry[0], pluginEntry[1]);
+    return processor;
+  }
+
+  processor.use(pluginEntry);
+  return processor;
+};
+
 const createPreviewProcessor = (collection: AdminContentCollectionKey, sourceFilePath: string | null, source: string) => {
+  const isAboutPreview = collection === 'about';
+  const projectRemarkPlugins = createProjectMarkdownRemarkPlugins({ aboutEnabled: isAboutPreview });
+  const [
+    rehypeProtectMath,
+    rehypeRawHtml,
+    rehypeRestoreMathBoundary,
+    rehypeAbout,
+    rehypeSanitizeSchema,
+    rehypeRenderKatex
+  ] = createProjectMarkdownRehypePlugins({
+    aboutBase: previewBase,
+    aboutEnabled: isAboutPreview
+  });
+
   const processor = unified()
     .use(remarkParse)
-    // 后台预览是手写 pipeline，不继承 Astro Markdown 默认 GFM；显式接入以对齐公开文章渲染。
+    // 后台预览是手写 pipeline，不继承 Astro Markdown 默认 GFM / smartypants。
     .use(remarkGfm)
-    .use(remarkMath, { singleDollarTextMath: false })
-    .use(remarkDirective);
+    .use(remarkSmartypants, markdownSmartypantsOptions);
 
-  if (collection === 'about') {
-    processor.use(remarkAboutDirectives, { enabled: true });
-  }
+  projectRemarkPlugins.forEach((pluginEntry) => useProcessorPlugin(processor, pluginEntry));
 
-  processor
-    .use(remarkCallout)
-    .use(remarkRehype, { allowDangerousHtml: true })
-    .use(createPreviewOutlineAnchorPlugin(source))
-    .use(rehypeProtectMarkdownMath)
-    .use(rehypeShiki, previewShikiOptions)
-    .use(rehypeRaw, markdownMathRawOptions)
-    .use(rehypeRestoreMarkdownMathBoundary)
-    .use(createPreviewImageSrcPlugin(sourceFilePath));
-
-  if (collection === 'about') {
-    processor.use(rehypeAboutDirectives, { base: previewBase, enabled: true });
-  }
+  processor.use(remarkRehype, { allowDangerousHtml: true });
+  processor.use(createPreviewOutlineAnchorPlugin(source));
+  useProcessorPlugin(processor, rehypeProtectMath);
+  processor.use(rehypeShiki, previewShikiOptions);
+  useProcessorPlugin(processor, rehypeRawHtml);
+  useProcessorPlugin(processor, rehypeRestoreMathBoundary);
+  processor.use(createPreviewImageSrcPlugin(sourceFilePath));
+  useProcessorPlugin(processor, rehypeAbout);
+  useProcessorPlugin(processor, rehypeSanitizeSchema);
+  useProcessorPlugin(processor, rehypeRenderKatex);
 
   return processor
-    .use(rehypeSanitize, sanitizeSchema as unknown as RehypeSanitizeOptions)
-    .use(rehypeKatex)
     .use(rehypeStringify);
 };
 

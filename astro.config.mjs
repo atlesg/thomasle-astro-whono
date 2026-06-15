@@ -2,20 +2,7 @@ import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'astro/config';
 import sitemap from '@astrojs/sitemap';
 import svelte from '@astrojs/svelte';
-import remarkDirective from 'remark-directive';
-import remarkMath from 'remark-math';
-import rehypeKatex from 'rehype-katex';
-import rehypeRaw from 'rehype-raw';
-import rehypeSanitize from 'rehype-sanitize';
-import {
-  markdownMathRawOptions,
-  rehypeProtectMarkdownMath,
-  rehypeRestoreMarkdownMathBoundary
-} from './src/plugins/rehype-markdown-math-boundary.mjs';
-import remarkCallout from './src/plugins/remark-callout.mjs';
-import { rehypeAboutDirectives, remarkAboutDirectives } from './src/plugins/about-directives.mjs';
-import { sanitizeSchema } from './src/plugins/sanitize-schema.mjs';
-import shikiToolbar from './src/plugins/shiki-toolbar.mjs';
+import { createPublicMarkdownConfig } from './src/plugins/markdown-pipeline.mjs';
 import { site, hasSiteUrl } from './site.config.mjs';
 
 const isProductionBuild = process.env.NODE_ENV === 'production';
@@ -94,23 +81,5 @@ export default defineConfig({
       ]
     }
   },
-  markdown: {
-    remarkPlugins: [[remarkMath, { singleDollarTextMath: false }], remarkDirective, remarkAboutDirectives, remarkCallout],
-    // Only double-dollar syntax from remark-math may reach KaTeX; raw HTML math classes are scrubbed.
-    rehypePlugins: [
-      rehypeProtectMarkdownMath,
-      [rehypeRaw, markdownMathRawOptions],
-      rehypeRestoreMarkdownMathBoundary,
-      [rehypeAboutDirectives, { base: deploymentBase }],
-      [rehypeSanitize, sanitizeSchema],
-      rehypeKatex
-    ],
-    shikiConfig: {
-      themes: {
-        light: 'github-light',
-        dark: 'github-dark'
-      },
-      transformers: [shikiToolbar()]
-    }
-  }
+  markdown: createPublicMarkdownConfig({ base: deploymentBase })
 });

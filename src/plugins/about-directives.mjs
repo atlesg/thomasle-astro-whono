@@ -18,6 +18,7 @@ const getVFilePath = (file) =>
 
 const shouldTransformAboutDirectives = (file, options = {}) => {
   if (options.enabled === true) return true;
+  if (options.enabled === false) return false;
   if (typeof options.enabled === 'function') return options.enabled(file);
   return ABOUT_SOURCE_PATH_RE.test(getVFilePath(file));
 };
