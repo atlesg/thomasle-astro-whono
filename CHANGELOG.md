@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog, and this project aims to follow Semantic Versioning.
 
 
+## [Unreleased]
+
+### Fixed
+- 修复本地后台编辑 figure 图片块时，含转义文本或富文本说明的图片可能被错误回显，以及本地图片缺失检查可能漏检的问题。
+
+
 ## [0.5.0] - 2026-06-16
 
 ### Added

@@ -669,6 +669,11 @@ describe('admin content essay write contract', () => {
         '  <img src="./demo-assets/missing-figure.webp" alt="Missing figure" />',
         '</figure>',
         '',
+        '<figure class="figure">',
+        '  <img src="./demo-assets/missing-rich-caption-figure.webp" alt="Missing rich caption figure" />',
+        '  <figcaption><strong>Rich caption</strong></figcaption>',
+        '</figure>',
+        '',
         '<ul class="gallery cols-2">',
         '  <li><figure><img src="./demo-assets/missing-gallery.webp" alt="Missing gallery" /></figure></li>',
         '</ul>',
@@ -722,6 +727,7 @@ describe('admin content essay write contract', () => {
       expect.arrayContaining([
         '正文引用的本地图片不存在：src/content/essay/demo-assets/missing.webp',
         '正文引用的本地图片不存在：src/content/essay/demo-assets/missing-figure.webp',
+        '正文引用的本地图片不存在：src/content/essay/demo-assets/missing-rich-caption-figure.webp',
         '正文引用的本地图片不存在：src/content/essay/demo-assets/missing-gallery.webp'
       ])
     );

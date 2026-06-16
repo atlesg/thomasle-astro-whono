@@ -1,6 +1,11 @@
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { collectEssayImageBlocks } from './essay-image-blocks';
+import {
+  collectEssayImageBlocks,
+  collectEssayImageIgnoredRanges,
+  getHtmlAttributeValue,
+  isRangeIgnored
+} from './essay-image-blocks';
 import { collectEssayGalleryImageSources } from './essay-gallery-blocks';
 
 export type MarkdownBodyLocalImageReference = {
@@ -19,22 +24,19 @@ type FindMissingMarkdownBodyLocalImageReferencesInput = {
   fileExists?: (absolutePath: string) => boolean;
 };
 
+type ImageSourceReference = Pick<MarkdownBodyLocalImageReference, 'kind' | 'src'>;
+
+const FIGURE_RE = /<figure\b[^>]*>([\s\S]*?)<\/figure>/gi;
+const IMG_TAG_RE = /<img\b[^>]*>/gi;
+
 const getProjectRoot = (): string =>
   process.env.ASTRO_WHONO_INTERNAL_TEST_PROJECT_ROOT?.trim() || process.cwd();
 
-const decodeHtmlAttributeValue = (value: string): string =>
-  value
-    .replace(/&amp;/gi, '&')
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;/gi, "'")
-    .replace(/&lt;/gi, '<')
-    .replace(/&gt;/gi, '>');
-
 const normalizeImageSource = (value: string): string => {
-  const decoded = decodeHtmlAttributeValue(value).trim();
-  return decoded.startsWith('<') && decoded.endsWith('>')
-    ? decoded.slice(1, -1).trim()
-    : decoded;
+  const trimmed = value.trim();
+  return trimmed.startsWith('<') && trimmed.endsWith('>')
+    ? trimmed.slice(1, -1).trim()
+    : trimmed;
 };
 
 const getLocalImagePathPart = (src: string): string | null => {
@@ -50,6 +52,34 @@ const getLocalImagePathPart = (src: string): string | null => {
 
   const pathPart = (normalized.split(/[?#]/, 1)[0] ?? '').trim().replace(/\\/g, '/');
   return pathPart || null;
+};
+
+const collectFigureImageSources = (source: string): ImageSourceReference[] => {
+  const ignoredRanges = collectEssayImageIgnoredRanges(source);
+  const references: ImageSourceReference[] = [];
+
+  for (const match of source.matchAll(FIGURE_RE)) {
+    const from = match.index ?? 0;
+    const range = { from, to: from + match[0].length };
+    if (isRangeIgnored(range, ignoredRanges)) continue;
+
+    const figureHtml = match[0];
+    const figureBody = match[1] ?? '';
+    if (/<picture\b/i.test(figureBody)) continue;
+
+    const classNames = getHtmlAttributeValue(figureHtml.match(/<figure\b[^>]*>/i)?.[0] ?? '', 'class')
+      .split(/\s+/)
+      .filter(Boolean);
+    if (!classNames.includes('figure')) continue;
+
+    const imageTags = Array.from(figureBody.matchAll(IMG_TAG_RE), (imageMatch) => imageMatch[0]);
+    if (imageTags.length !== 1) continue;
+
+    const src = getHtmlAttributeValue(imageTags[0] ?? '', 'src');
+    if (src) references.push({ kind: 'figure', src });
+  }
+
+  return references;
 };
 
 const toLocalImageReference = ({
@@ -88,9 +118,20 @@ export const collectMarkdownBodyLocalImageReferences = ({
   const references: MarkdownBodyLocalImageReference[] = [];
 
   for (const block of collectEssayImageBlocks(bodyText)) {
+    if (block.kind !== 'markdown') continue;
     const reference = toLocalImageReference({
       kind: block.kind,
       src: block.draft.src,
+      sourcePath,
+      projectRoot
+    });
+    if (reference) references.push(reference);
+  }
+
+  for (const image of collectFigureImageSources(bodyText)) {
+    const reference = toLocalImageReference({
+      kind: image.kind,
+      src: image.src,
       sourcePath,
       projectRoot
     });

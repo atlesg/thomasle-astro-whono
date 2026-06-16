@@ -39,6 +39,14 @@ const HTML_COMMENT_RE = /<!--[\s\S]*?-->/g;
 const INLINE_CODE_SPAN_RE = /`+[^`\n]*`+/g;
 const FENCE_OPEN_RE = /^ {0,3}(`{3,}|~{3,})/;
 const FENCE_CLOSE_RE = /^ {0,3}(`{3,}|~{3,})[ \t]*$/;
+const HTML_TEXT_ENTITY_RE = /&(amp|quot|#39|lt|gt);/gi;
+const HTML_TEXT_ENTITIES: Record<string, string> = {
+  amp: '&',
+  quot: '"',
+  '#39': "'",
+  lt: '<',
+  gt: '>'
+};
 
 const IMAGE_DISPLAY_SIZES = new Set<EssayImageDisplaySize>(['default', 'sm', 'md', 'lg', 'full']);
 const IMAGE_DISPLAY_ALIGNMENTS = new Set<EssayImageDisplayAlignment>(['center', 'left', 'right']);
@@ -164,12 +172,10 @@ const normalizeMarkdownImageSource = (value: string): string => {
 };
 
 export const decodeHtmlText = (value: string): string =>
-  value
-    .replace(/&amp;/gi, '&')
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;/gi, "'")
-    .replace(/&lt;/gi, '<')
-    .replace(/&gt;/gi, '>');
+  value.replace(
+    HTML_TEXT_ENTITY_RE,
+    (entity) => HTML_TEXT_ENTITIES[entity.slice(1, -1).toLowerCase()] ?? entity
+  );
 
 export const getHtmlAttributeValue = (tag: string, name: string): string => {
   const pattern = new RegExp(`\\b${name}\\s*=\\s*(['"])(.*?)\\1`, 'i');
@@ -199,9 +205,11 @@ const getFigureAlignment = (classNames: readonly string[]): EssayImageDisplayAli
   return alignment ?? 'center';
 };
 
-const getFigureCaption = (figureBody: string): string => {
-  const captionHtml = figureBody.match(FIGCAPTION_RE)?.[1] ?? '';
-  return decodeHtmlText(captionHtml.replace(/<[^>]*>/g, '').trim());
+const getFigureCaption = (figureBody: string): string | null => {
+  const captionHtml = figureBody.match(FIGCAPTION_RE)?.[1]?.trim() ?? '';
+  if (!captionHtml) return '';
+  if (/<[^>]*>/.test(captionHtml)) return null;
+  return decodeHtmlText(captionHtml);
 };
 
 const parseMarkdownImageBlocks = (
@@ -252,6 +260,7 @@ const parseFigureImageBlocks = (
       if (!classNames.includes('figure')) return null;
 
       const caption = getFigureCaption(figureBody);
+      if (caption === null) return null;
       return {
         kind: 'figure',
         range,

@@ -18,6 +18,8 @@ import {
 import {
   replaceMarkdownText
 } from '../src/components/admin/editor/markdown/editor-markdown-transforms';
+import { decodeHtmlText } from '../src/lib/admin-console/essay-image-blocks';
+import { collectMarkdownBodyLocalImageReferences } from '../src/lib/admin-console/essay-image-references';
 
 describe('admin editor image insert helpers', () => {
   it('keeps the default image output as Markdown', () => {
@@ -234,6 +236,8 @@ describe('admin editor image insert helpers', () => {
   });
 
   it('finds editable Markdown and controlled figure blocks at the current selection', () => {
+    expect(decodeHtmlText('&lt;caption&gt; &amp;lt;script&amp;gt;')).toBe('<caption> &lt;script&gt;');
+
     const markdownSource = 'Intro ![A \\\\ bracket \\]](./image.webp) outro';
     const markdownBlock = findEditableImageBlockAtSelection(markdownSource, { from: 12, to: 12 });
 
@@ -276,6 +280,44 @@ describe('admin editor image insert helpers', () => {
         alignment: 'right'
       }
     });
+
+    const encodedFigureSource = [
+      '<figure class="figure">',
+      '  <img src="./encoded.webp?x=1&amp;y=2" alt="Encoded" />',
+      '  <figcaption>Caption &amp; &amp;lt;script&amp;gt;</figcaption>',
+      '</figure>'
+    ].join('\n');
+    expect(findEditableImageBlockAtSelection(encodedFigureSource, {
+      from: encodedFigureSource.indexOf('Caption'),
+      to: encodedFigureSource.indexOf('Caption')
+    })).toMatchObject({
+      draft: {
+        src: './encoded.webp?x=1&y=2',
+        caption: 'Caption & &lt;script&gt;'
+      }
+    });
+
+    const richCaptionSource = [
+      '<figure class="figure">',
+      '  <img src="./rich.webp" alt="Rich" />',
+      '  <figcaption><strong>Rich caption</strong></figcaption>',
+      '</figure>'
+    ].join('\n');
+    expect(findEditableImageBlockAtSelection(richCaptionSource, {
+      from: richCaptionSource.indexOf('rich.webp'),
+      to: richCaptionSource.indexOf('rich.webp')
+    })).toBeNull();
+
+    expect(collectMarkdownBodyLocalImageReferences({
+      bodyText: '<figure class="figure"><img src="./encoded&amp;lt;name.webp" alt="Encoded" /></figure>',
+      sourcePath: '/project/src/content/essay/demo.md',
+      projectRoot: '/project'
+    })).toEqual([
+      expect.objectContaining({
+        src: './encoded&lt;name.webp',
+        relativePath: 'src/content/essay/encoded&lt;name.webp'
+      })
+    ]);
   });
 
   it('skips non-controlled figures and images inside code or comments', () => {
